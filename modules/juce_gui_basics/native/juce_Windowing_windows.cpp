@@ -3521,6 +3521,8 @@ private:
         modProvider = provider;
     }
 
+    ModifierKeyProvider* getModifierKeyProvider() override { return modProvider; }
+
     void removeModifierKeyProvider() override
     {
         modProvider = nullptr;

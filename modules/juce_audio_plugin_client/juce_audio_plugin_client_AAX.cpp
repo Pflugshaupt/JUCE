@@ -652,6 +652,10 @@ namespace AAXClasses
                 uint32 aaxViewMods = 0;
                 const_cast<AAX_IViewContainer*> (viewContainer)->GetModifiers (&aaxViewMods);
 
+#if JUCE_WINDOWS
+                if ((aaxViewMods & AAX_eModifiers_WINKEY) != 0) modifierFlags |= ModifierKeys::commandModifier;
+                if ((aaxViewMods & AAX_eModifiers_Cntl) != 0) modifierFlags |= ModifierKeys::ctrlModifier;
+#endif
                 if ((aaxViewMods & AAX_eModifiers_Shift) != 0) modifierFlags |= ModifierKeys::shiftModifier;
                 if ((aaxViewMods & AAX_eModifiers_Alt )  != 0) modifierFlags |= ModifierKeys::altModifier;
             }

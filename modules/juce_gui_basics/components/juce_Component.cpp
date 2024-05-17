@@ -37,6 +37,10 @@
                && MessageManager::getInstanceWithoutCreating()->currentThreadHasLockedMessageManager()) \
               || getPeer() == nullptr);
 
+#if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
+#include "juce_audio_plugin_client/AAX/juce_AAX_Modifier_Injector.h"
+#endif
+
 namespace juce
 {
 
@@ -2110,6 +2114,28 @@ void Component::internalMouseExit (MouseInputSource source, Point<float> relativ
     MouseListenerList::sendMouseEvent (checker, &MouseListener::mouseExit);
 }
 
+static bool _proToolsAutomationModsDown = false;
+
+static inline bool _proToolsAutomationMods(Component *c) {
+    // some events need to be blocked based on modifiers, which are tricky on windows.
+#if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
+#if JUCE_WINDOWS
+    auto* peer = c->getPeer();
+    if (auto modrec = dynamic_cast<juce::ModifierKeyReceiver*>(peer)) {
+        if (auto modprov = modrec->getModifierKeyProvider()) {
+            auto mods = modprov->getWin32Modifiers();
+            return ((mods & ModifierKeys::commandModifier) != 0) && ((mods & ModifierKeys::ctrlModifier) != 0);
+        }
+    }
+#else
+    // on macOS it works the normal way.
+    const auto curModifiers = ModifierKeys::getCurrentModifiers();
+    return (curModifiers.isCommandDown() && curModifiers.isCtrlDown());
+#endif
+#endif
+    return false;
+}
+
 void Component::internalMouseDown (MouseInputSource source,
                                    const detail::PointerState& relativePointerState,
                                    Time time)
@@ -2168,7 +2194,10 @@ void Component::internalMouseDown (MouseInputSource source,
     if (flags.repaintOnMouseActivityFlag)
         repaint();
 
-    mouseDown (me);
+    // prevent protools automation shortcut mouse events from going through
+    _proToolsAutomationModsDown = _proToolsAutomationMods(this);
+    if (!_proToolsAutomationModsDown)
+        mouseDown (me);
 
     if (checker.shouldBailOut())
         return;
@@ -2202,7 +2231,9 @@ void Component::internalMouseUp (MouseInputSource source,
     if (flags.repaintOnMouseActivityFlag)
         repaint();
 
-    mouseUp (me);
+    if (!_proToolsAutomationModsDown)
+        mouseUp (me);
+    _proToolsAutomationModsDown = false;
 
     if (checker.shouldBailOut())
         return;
@@ -2245,8 +2276,9 @@ void Component::internalMouseDrag (MouseInputSource source, const detail::Pointe
                                         source.isLongPressOrDrag());
 
         HierarchyChecker checker (this, me);
-
-        mouseDrag (me);
+       
+        if (!_proToolsAutomationModsDown)
+            mouseDrag (me);
 
         if (checker.shouldBailOut())
             return;
