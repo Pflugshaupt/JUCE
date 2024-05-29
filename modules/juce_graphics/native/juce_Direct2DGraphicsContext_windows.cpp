@@ -54,9 +54,70 @@ public:
 
     void push (ComSmartPtr<ID2D1DeviceContext1> context, const D2D1_LAYER_PARAMETERS& layerParameters)
     {
-        // Clipping and transparency are all handled by pushing Direct2D layers. The SavedState creates an internal stack
-        // of Layer objects to keep track of how many layers need to be popped.
-        // Pass nullptr for the PushLayer layer parameter to allow Direct2D to manage the layers (Windows 8 or later)
+        // Clipping and transparency are all handled by pushing Direct2D
+        // layers.The SavedState creates an internal stack of Layer objects to
+        // keep track of how many layers need to be popped. Pass nullptr for
+        // the PushLayer layer parameter to allow Direct2D to manage the layers
+        // (Windows 8 or later)
+
+       #if JUCE_DEBUG
+
+        // Check if this should be an axis-aligned clip layer (per the D2D
+        // debug layer)
+        const auto isGeometryAxisAlignedRectangle = [&]
+        {
+            auto* geometry = layerParameters.geometricMask;
+
+            if (geometry == nullptr)
+                return false;
+
+            struct Sink : public ComBaseClassHelper<ID2D1SimplifiedGeometrySink>
+            {
+                D2D1_POINT_2F lastPoint{};
+                bool axisAlignedLines = true;
+                UINT32 lineCount = 0;
+
+                STDMETHOD (Close)() override { return S_OK; }
+                STDMETHOD_ (void, SetFillMode) (D2D1_FILL_MODE) override {}
+                STDMETHOD_ (void, SetSegmentFlags) (D2D1_PATH_SEGMENT) override {}
+                STDMETHOD_ (void, EndFigure) (D2D1_FIGURE_END) override {}
+
+                STDMETHOD_ (void, BeginFigure) (D2D1_POINT_2F p, D2D1_FIGURE_BEGIN) override { lastPoint = p; }
+
+                STDMETHOD_ (void, AddLines) (const D2D1_POINT_2F* points, UINT32 count) override
+                {
+                    for (UINT32 i = 0; i < count; ++i)
+                    {
+                        auto p = points[i];
+
+                        axisAlignedLines &= (approximatelyEqual (p.x, lastPoint.x) || approximatelyEqual (p.y, lastPoint.y));
+                        lastPoint = p;
+                    }
+
+                    lineCount += count;
+                }
+
+                STDMETHOD_ (void, AddBeziers) (const D2D1_BEZIER_SEGMENT*, UINT32) override
+                {
+                    axisAlignedLines = false;
+                }
+            };
+
+            Sink sink;
+            geometry->Simplify (D2D1_GEOMETRY_SIMPLIFICATION_OPTION_CUBICS_AND_LINES,
+                                D2D1::Matrix3x2F::Identity(),
+                                1.0f,
+                                &sink);
+
+            // Check for 3 lines; the BeginFigure counts as 1 line
+            return sink.axisAlignedLines && sink.lineCount == 3;
+        }();
+
+        jassert (layerParameters.opacity != 1.0f
+                 || layerParameters.opacityBrush
+                 || ! isGeometryAxisAlignedRectangle);
+       #endif
+
         context->PushLayer (layerParameters, nullptr);
         pushedLayers.emplace_back (popLayerFlag);
     }
@@ -792,6 +853,8 @@ void Direct2DGraphicsContext::setOrigin (Point<int> o)
     applyPendingClipList();
 
     currentState->currentTransform.setOrigin (o);
+
+    resetPendingClipList();
 }
 
 void Direct2DGraphicsContext::addTransform (const AffineTransform& transform)
@@ -1017,12 +1080,21 @@ void Direct2DGraphicsContext::clipToImageAlpha (const Image& sourceImage, const 
     // to the sourceImage bounds
     auto brushTransform = currentState->currentTransform.getTransformWith (transform);
     {
-        D2D1_RECT_F sourceImageRectF = D2DUtilities::toRECT_F (sourceImage.getBounds());
-        ComSmartPtr<ID2D1RectangleGeometry> geometry;
-        getPimpl()->getDirect2DFactory()->CreateRectangleGeometry (sourceImageRectF, geometry.resetAndGetPointerAddress());
+        if (D2DHelpers::isTransformAxisAligned (brushTransform))
+        {
+            currentState->pushAliasedAxisAlignedClipLayer (sourceImage.getBounds().toFloat().transformedBy (brushTransform));
+        }
+        else
+        {
+            const auto sourceImageRectF = D2DUtilities::toRECT_F (sourceImage.getBounds());
+            ComSmartPtr<ID2D1RectangleGeometry> geometry;
 
-        if (geometry)
-            currentState->pushTransformedRectangleGeometryClipLayer (geometry, brushTransform);
+            if (const auto hr = getPimpl()->getDirect2DFactory()->CreateRectangleGeometry (sourceImageRectF, geometry.resetAndGetPointerAddress());
+                SUCCEEDED (hr) && geometry != nullptr)
+            {
+                currentState->pushTransformedRectangleGeometryClipLayer (geometry, brushTransform);
+            }
+        }
     }
 
     // Set the clip list to the full size of the frame to match
