@@ -4,6 +4,70 @@
 
 ## Change
 
+As part of the Unicode upgrades TextLayout codepaths have been unified across
+all platforms. As a consequence the behaviour of TextLayout on Apple platforms
+will now be different in two regards:
+- With certain fonts, line spacing will now be different.
+- The AttributedString option WordWrap::byChar will no longer have an effect,
+  just like it didn't have an effect on non-Apple platforms previously. Wrapping
+  will now always happen on word boundaries.
+
+Furthermore, the JUCE_USE_DIRECTWRITE compiler flag will no longer have any
+effect.
+
+**Possible Issues**
+
+User interfaces using TextLayout and the WordWrap::byChar option will have their
+appearance altered on Apple platforms. The line spacing will be different for
+certain fonts.
+
+**Workaround**
+
+There is no workaround.
+
+**Rationale**
+
+The new, unified codepath has better support for Unicode text in general. The
+font fallback mechanism, which previously was only available using the removed
+codepaths is now an integral part of the new approach. By removing the
+alternative codepaths, text layout and line spacing has become more consistent
+across the platforms.
+
+
+## Change
+
+As part of the Unicode upgrades the vertical alignment logic of TextLayout has
+been altered. Lines containing text written in multiple different fonts will
+now have their baselines aligned. Additionally, using the
+Justification::verticallyCentred or Justification::bottom flags may now result
+in the text being positioned slightly differently.
+
+**Possible Issues**
+
+User interfaces using TextLayout with texts drawn using multiple fonts will now
+have their look changed.
+
+**Workaround**
+
+There is no workaround.
+
+**Rationale**
+
+The old implementation had incosistent vertical alignment behaviour. Depending
+on what exact fonts the first line of text happened to use, the bottom alignment
+would sometimes produce unnecessary padding on the bottom. With certain text and
+Font combinations the text would be drawn beyond the bottom boundary even though
+there was free space above the text.
+
+The same amount of incorrect vertical offset, that was calculated for bottom
+alignment, was also present when using centred, it just wasn't as apparent.
+
+Not having the baselines aligned between different fonts resulted in generally
+displeasing visuals.
+
+
+## Change
+
 The virtual functions LowLevelGraphicsContext::drawGlyph() and drawTextLayout()
 have been removed.
 
