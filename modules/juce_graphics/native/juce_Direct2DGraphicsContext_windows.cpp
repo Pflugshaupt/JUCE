@@ -55,7 +55,7 @@ public:
     void push (ComSmartPtr<ID2D1DeviceContext1> context, const D2D1_LAYER_PARAMETERS& layerParameters)
     {
         // Clipping and transparency are all handled by pushing Direct2D
-        // layers.The SavedState creates an internal stack of Layer objects to
+        // layers. The SavedState creates an internal stack of Layer objects to
         // keep track of how many layers need to be popped. Pass nullptr for
         // the PushLayer layer parameter to allow Direct2D to manage the layers
         // (Windows 8 or later)
@@ -105,7 +105,7 @@ public:
 
             Sink sink;
             geometry->Simplify (D2D1_GEOMETRY_SIMPLIFICATION_OPTION_CUBICS_AND_LINES,
-                                D2D1::Matrix3x2F::Identity(),
+                                layerParameters.maskTransform,
                                 1.0f,
                                 &sink);
 
@@ -1291,21 +1291,16 @@ void Direct2DGraphicsContext::fillRectList (const RectangleList<float>& list)
 
 void Direct2DGraphicsContext::drawRect (const Rectangle<float>& r, float lineThickness)
 {
-    // ID2D1DeviceContext::DrawRectangle centers the stroke around the edges of the specified rectangle, but
-    // the software renderer contains the stroke within the rectangle
-    // To match the software renderer, reduce the rectangle by half the stroke width
-    if (r.getWidth() * 0.5f < lineThickness || r.getHeight() * 0.5f < lineThickness)
-        return;
-
     auto draw = [&] (Rectangle<float> rect, ComSmartPtr<ID2D1DeviceContext1> deviceContext, ComSmartPtr<ID2D1Brush> brush)
     {
+        // ID2D1DeviceContext::DrawRectangle centers the stroke around the edges of the specified rectangle, but
+        // the software renderer contains the stroke within the rectangle
+        // To match the software renderer, reduce the rectangle by half the stroke width
         if (brush != nullptr)
-            deviceContext->DrawRectangle (D2DUtilities::toRECT_F (rect), brush, lineThickness);
+            deviceContext->DrawRectangle (D2DUtilities::toRECT_F (rect.reduced (lineThickness * 0.5f)), brush, lineThickness);
     };
 
-    auto reducedR = r.reduced (lineThickness * 0.5f);
-
-    getPimpl()->paintPrimitive (reducedR, draw);
+    getPimpl()->paintPrimitive (r, draw);
 }
 
 void Direct2DGraphicsContext::fillPath (const Path& p, const AffineTransform& transform)
