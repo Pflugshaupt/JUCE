@@ -87,7 +87,9 @@ struct Direct2DDeviceContext
             return {};
         }
 
-        result->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+        //result->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+        result->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+
         result->SetAntialiasMode (D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
         result->SetUnitMode (D2D1_UNIT_MODE_PIXELS);
 
