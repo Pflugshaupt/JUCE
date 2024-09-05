@@ -348,8 +348,15 @@ struct Direct2DDeviceContext
             return {};
         }
 
-        result->SetTextAntialiasMode (D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-        result->SetAntialiasMode (D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+		// Fetch cleartype status once only
+		static const bool _isClearTypeOn = []{
+			UINT smoothingType = 0;
+			SystemParametersInfo(SPI_GETFONTSMOOTHINGTYPE, 0, &smoothingType, 0);
+			return (smoothingType == FE_FONTSMOOTHINGCLEARTYPE);
+		}();
+
+		result->SetTextAntialiasMode (_isClearTypeOn ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+		result->SetAntialiasMode (D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
         result->SetUnitMode (D2D1_UNIT_MODE_PIXELS);
 
         return result;
