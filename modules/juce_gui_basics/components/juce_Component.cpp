@@ -2160,6 +2160,7 @@ void Component::internalMouseExit (MouseInputSource source, Point<float> relativ
 static bool _proToolsAutomationModsDown = false;
 
 static inline bool _proToolsAutomationMods(Component *c) {
+    ignoreUnused(c);
     // some events need to be blocked based on modifiers, which are tricky on windows.
 #if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
 #if JUCE_WINDOWS
