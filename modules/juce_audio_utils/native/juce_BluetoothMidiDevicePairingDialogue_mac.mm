@@ -166,13 +166,21 @@ private:
 bool BluetoothMidiDevicePairingDialogue::open (ModalComponentManager::Callback* exitCallback,
                                                Rectangle<int>* bounds)
 {
+#if 0 // deactivated by AP to avoid having to link to CoreAudioKit because Apple screwed up macOS 10.12
     new BluetoothMidiSelectorWindowHelper (exitCallback, bounds);
     return true;
+#else
+    return false;
+#endif
 }
 
 bool BluetoothMidiDevicePairingDialogue::isAvailable()
 {
+#if 0 // deactivated by AP to avoid having to link to CoreAudioKit because Apple screwed up macOS 10.12
     return true;
+#else
+    return false;
+#endif
 }
 
 } // namespace juce

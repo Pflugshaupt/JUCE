@@ -2526,6 +2526,29 @@ private:
                     && target->type != XcodeTarget::SharedCodeTarget
                     && target->type != XcodeTarget::LV2Helper)
                 {
+                    /// AP: remove some frameworks I don't need known to cause issues on older versions of macOS (10.11/10.12)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wswitch"
+                    switch (target->type) {
+                    case XcodeTarget::VSTPlugIn:
+                    case XcodeTarget::VST3PlugIn:
+                    case XcodeTarget::AudioUnitPlugIn:
+                    case XcodeTarget::AudioUnitv3PlugIn:
+                    case XcodeTarget::LV2PlugIn:
+                    case XcodeTarget::LV2Helper:
+                    case XcodeTarget::AAXPlugIn:
+                        {
+                            std::string frameworksToStrip[] = {"CoreAudioKit", "DiscRecording", "WebKit"};
+                            for (auto& framework : frameworksToStrip) {
+                                auto idx = target->frameworkNames.indexOf(framework.c_str());
+                                if (idx >= 0) {
+                                    target->frameworkNames.remove(idx);
+                                    target->frameworkIDs.remove(idx);
+                                }
+                            }
+                        } break;
+                    }
+#pragma clang diagnostic pop
                     target->addBuildPhase ("PBXFrameworksBuildPhase", target->frameworkIDs);
                 }
             }
