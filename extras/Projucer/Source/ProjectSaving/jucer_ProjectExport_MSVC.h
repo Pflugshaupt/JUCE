@@ -1713,6 +1713,7 @@ private:
 
     bool launchViaVSWhere()
     {
+    #if JUCE_WINDOWS
         auto vswhere = juce::File::getSpecialLocation (juce::File::globalApplicationsDirectoryX86).getChildFile ("Microsoft Visual Studio\\Installer\\vswhere.exe");
         if (! vswhere.existsAsFile())
             return false;
@@ -1743,6 +1744,7 @@ private:
             }
         }
 
+    #endif
         return false;
     }
 
