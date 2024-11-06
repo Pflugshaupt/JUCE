@@ -32,16 +32,9 @@
   ==============================================================================
 */
 
-JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-copy-with-dtor",
-                                     "-Wunused-but-set-variable",
-                                     "-Wdeprecated",
-                                     "-Wunused-function",
-                                     "-Wpedantic")
-JUCE_BEGIN_IGNORE_WARNINGS_MSVC (6011 6246 6255 6262 6297 6308 6323 6340 6385 6386 28182)
+#define choc juce::detail::choc
 #include <juce_core/javascript/choc/javascript/choc_javascript_QuickJS.h>
-#include <juce_core/javascript/choc/javascript/choc_javascript.h>
-JUCE_END_IGNORE_WARNINGS_MSVC
-JUCE_END_IGNORE_WARNINGS_GCC_LIKE
+#undef choc
 
 namespace juce
 {
@@ -56,7 +49,7 @@ template <typename T>
 static int64_t toJuceInt64   (const T& convertible) { return (int64) (int64_t) convertible; }
 
 //==============================================================================
-namespace qjs = choc::javascript::quickjs;
+namespace qjs = detail::choc::javascript::quickjs;
 
 using VarOrError = std::variant<var, String>;
 
@@ -412,7 +405,7 @@ static VarOrError quickJSToJuce (const qjs::QuickJSContext::ValuePtr& ptr)
     {
         return tryQuickJSToJuce (ptr);
     }
-    catch (const choc::javascript::Error& error)
+    catch (const detail::choc::javascript::Error& error)
     {
         return String (error.what());
     }
@@ -428,17 +421,12 @@ class detail::QuickJSWrapper
 public:
     qjs::JSContext* getQuickJSContext() const
     {
-        return static_cast<qjs::QuickJSContext*> (context.getPimpl())->context;
+        return impl->context;
     }
 
     qjs::JSRuntime* getQuickJSRuntime() const
     {
-        return static_cast<qjs::QuickJSContext*> (context.getPimpl())->runtime;
-    }
-
-    choc::javascript::Context& getContext()
-    {
-        return context;
+        return impl->runtime;
     }
 
     /*  Returning a value > 0 will interrupt the QuickJS engine.
@@ -460,7 +448,7 @@ private:
         return 0;
     }
 
-    choc::javascript::Context context = choc::javascript::createQuickJSContext();
+    std::unique_ptr<qjs::QuickJSContext> impl = std::make_unique<qjs::QuickJSContext>();
     std::function<int()> interruptHandler;
 };
 JUCE_END_IGNORE_WARNINGS_GCC_LIKE
@@ -477,7 +465,7 @@ static qjs::JSCFunctionListEntry makeFunctionListEntry (const char* name,
                                                         SetterFn setter,
                                                         int16_t magic)
 {
-    qjs::JSCFunctionListEntry e { name, JS_PROP_CONFIGURABLE, qjs::JS_DEF_CGETSET_MAGIC, magic, {} };
+    qjs::JSCFunctionListEntry e { name, JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE, qjs::JS_DEF_CGETSET_MAGIC, magic, {} };
     e.u.getset.get.getter_magic = getter;
     e.u.getset.set.setter_magic = setter;
     return e;
@@ -558,11 +546,11 @@ struct DynamicObjectWrapper
     }
 
     //==============================================================================
-    static choc::javascript::quickjs::JSValue callDispatcher (qjs::JSContext* ctx,
-                                                              qjs::JSValueConst thisValue,
-                                                              int numArgs,
-                                                              qjs::JSValueConst* args,
-                                                              int ordinal)
+    static qjs::JSValue callDispatcher (qjs::JSContext* ctx,
+                                        qjs::JSValueConst thisValue,
+                                        int numArgs,
+                                        qjs::JSValueConst* args,
+                                        int ordinal)
     {
         auto& self = *static_cast<DynamicObjectWrapper*> (qjs::JS_GetOpaque2 (ctx, thisValue, getClassId()));
         const auto argList = quickJSToJuce (Span { args, (size_t) numArgs }, ctx);
@@ -621,6 +609,11 @@ public:
     Impl()
     {
         DynamicObjectWrapper::createClass (engine.getQuickJSRuntime());
+
+        engine.setInterruptHandler ([this]
+        {
+            return (int64) Time::getMillisecondCounterHiRes() >= timeout;
+        });
     }
 
     void registerNativeObject (const Identifier& name,
@@ -690,16 +683,7 @@ public:
 
     var evaluate (const String& code, Result* errorMessage, RelativeTime maxExecTime)
     {
-        shouldStop = false;
-
-        engine.setInterruptHandler ([this, maxExecTime, started = Time::getMillisecondCounterHiRes()]()
-                                    {
-                                        if (shouldStop)
-                                            return 1;
-
-                                        const auto elapsed = RelativeTime::milliseconds ((int64) (Time::getMillisecondCounterHiRes() - started));
-                                        return elapsed > maxExecTime ? 1 : 0;
-                                    });
+        resetTimeout (maxExecTime);
 
         if (errorMessage != nullptr)
             *errorMessage = Result::ok();
@@ -723,8 +707,13 @@ public:
         return result;
     }
 
-    var callFunction (const Identifier& function, const var::NativeFunctionArgs& args, Result* errorMessage)
+    var callFunction (const Identifier& function,
+                      const var::NativeFunctionArgs& args,
+                      Result* errorMessage,
+                      RelativeTime maxExecTime)
     {
+        resetTimeout (maxExecTime);
+
         auto* ctx = engine.getQuickJSContext();
         const auto functionStr = function.toString();
 
@@ -754,7 +743,7 @@ public:
 
     void stop() noexcept
     {
-        shouldStop = true;
+        timeout = (int64) Time::getMillisecondCounterHiRes();
     }
 
     JSObject getRootObject() const
@@ -762,15 +751,15 @@ public:
         return JSObject { &engine };
     }
 
-    const detail::QuickJSWrapper& getEngine() const
-    {
-        return engine;
-    }
-
 private:
     //==============================================================================
+    void resetTimeout (RelativeTime maxExecTime)
+    {
+        timeout = (int64) Time::getMillisecondCounterHiRes() + maxExecTime.inMilliseconds();
+    }
+
     detail::QuickJSWrapper engine;
-    std::atomic<bool> shouldStop = false;
+    std::atomic<int64> timeout{};
 };
 
 //==============================================================================
@@ -801,7 +790,7 @@ var JavascriptEngine::callFunction (const Identifier& function,
                                     const var::NativeFunctionArgs& args,
                                     Result* errorMessage)
 {
-    return impl->callFunction (function, args, errorMessage);
+    return impl->callFunction (function, args, errorMessage, maximumExecutionTime);
 }
 
 void JavascriptEngine::stop() noexcept
@@ -1617,6 +1606,72 @@ public:
             auto res = juce::Result::fail ("");
             const auto val = temporaryEngine.evaluate ("let foo = Obj.getObj(); foo.mutate(); foo.mutate();", &res);
             expect (res.wasOk());
+
+            expect (numCalls == 2);
+        }
+
+        beginTest ("Properties of registered native objects are enumerable");
+        {
+            auto obj = rawToUniquePtr (new DynamicObject);
+            obj->setMethod ("methodA", nullptr);
+            obj->setProperty ("one", 1);
+            obj->setMethod ("methodB", nullptr);
+            obj->setProperty ("hello", "world");
+            obj->setMethod ("methodC", nullptr);
+            obj->setProperty ("nested",
+                              std::invoke ([]
+                                           {
+                                               auto result = rawToUniquePtr (new DynamicObject);
+                                               result->setProperty ("present", true);
+                                               return result.release();
+                                           }));
+
+            JavascriptEngine temporaryEngine;
+            temporaryEngine.registerNativeObject ("obj", obj.release());
+
+            auto res = juce::Result::fail ("");
+            const auto val = temporaryEngine.evaluate ("JSON.stringify (obj);", &res);
+            expect (res.wasOk());
+            expectEquals (val.toString(), String (R"({"nested":{"present":true},"one":1,"hello":"world"})"));
+        }
+
+        beginTest ("native objects survive being passed as arguments and return values");
+        {
+            JavascriptEngine temporaryEngine;
+
+            int numCalls = 0;
+
+            auto objWithProps = rawToUniquePtr (new DynamicObject);
+            objWithProps->setProperty ("one", 1);
+            objWithProps->setProperty ("hello", "world");
+            objWithProps->setMethod ("nativeFn", [&numCalls] (const auto&)
+            {
+                ++numCalls;
+                return "called a native fn";
+            });
+
+            auto objWithFn = rawToUniquePtr (new DynamicObject);
+
+            var passedToFn;
+            objWithFn->setMethod ("fn", [&passedToFn] (const auto& v)
+            {
+                passedToFn = v.arguments[0];
+                return passedToFn;
+            });
+
+            temporaryEngine.registerNativeObject ("withProps", objWithProps.release());
+            temporaryEngine.registerNativeObject ("withFn", objWithFn.release());
+
+            auto res = juce::Result::fail ("");
+            const auto val = temporaryEngine.evaluate ("withFn.fn (withProps);", &res);
+            expect (res.wasOk());
+
+            for (auto& v : { val, passedToFn })
+            {
+                expect (v.getProperty ("one", 0) == var { 1 });
+                expect (v.getProperty ("hello", "") == var { "world" });
+                expect (v.call ("nativeFn") == var ("called a native fn"));
+            }
 
             expect (numCalls == 2);
         }
