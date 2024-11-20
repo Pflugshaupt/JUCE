@@ -1373,6 +1373,8 @@ struct MenuWindow final : public Component
     OwnedArray<MouseSourceState> mouseSourceStates;
     float scaleFactor;
     bool exitingModalState = false;
+	bool mouseWasOver = false;
+	bool mouseUpCanTrigger = ! ModifierKeys::currentModifiers.isAnyMouseButtonDown();
 
 private:
     void handleMouseEvent (const MouseEvent& e)
@@ -1380,9 +1382,6 @@ private:
         mouseWasOver |= reallyContains (getLocalPoint (nullptr, e.getScreenPosition()), true);
         getMouseState (e.source).handleMouseEvent (e);
     }
-
-    bool mouseWasOver = false;
-    bool mouseUpCanTrigger = ! ModifierKeys::currentModifiers.isAnyMouseButtonDown();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MenuWindow)
 };
@@ -1495,6 +1494,10 @@ private:
         if (globalMousePos != lastMousePos || timeNow > lastMouseMoveTime + 350)
         {
             const auto isMouseOver = window.reallyContains (localMousePos, true);
+			if (isMouseOver) {
+				window.mouseWasOver = true;
+				window.mouseUpCanTrigger = true;
+			}
 
             if (lastMousePos.getDistanceFrom (globalMousePos) > 2)
             {
