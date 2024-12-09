@@ -651,11 +651,21 @@ auto Direct2DPixelData::getPagesForContext (ComSmartPtr<ID2D1DeviceContext1> con
 }
 
 //==============================================================================
+
+extern bool _runningUnderWine();
+
 ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
 {
     SharedResourcePointer<DirectX> directX;
 
-    if (directX->adapters.getFactory() == nullptr)
+	bool softwareFallback = false;
+	if (directX->adapters.getFactory() == nullptr) softwareFallback = true;
+	if (_runningUnderWine()) softwareFallback = true;
+#if AP_DISABLE_D2D
+	softwareFallback = true;
+#endif
+
+    if (softwareFallback)
     {
         // Make sure the DXGI factory exists
         //

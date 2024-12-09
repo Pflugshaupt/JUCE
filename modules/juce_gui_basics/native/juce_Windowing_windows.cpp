@@ -4714,9 +4714,15 @@ bool _runningUnderWine() {
 	}();
 	return isWine;
 }
+
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, 1 };
+	int engine = 1;
+	if (_runningUnderWine()) engine = 0;
+#if AP_DISABLE_D2D
+	engine = 0;
+#endif
+	return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, engine };
 }
 
 Image createSnapshotOfNativeWindow (void* nativeWindowHandle)
