@@ -656,14 +656,14 @@ extern bool _runningUnderWine();
 
 ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
 {
+#if AP_DISABLE_D2D
+    return new SoftwarePixelData{ format, width, height, clearImage };
+#else
     SharedResourcePointer<DirectX> directX;
 
 	bool softwareFallback = false;
 	if (directX->adapters.getFactory() == nullptr) softwareFallback = true;
 	if (_runningUnderWine()) softwareFallback = true;
-#if AP_DISABLE_D2D
-	softwareFallback = true;
-#endif
 
     if (softwareFallback)
     {
@@ -676,6 +676,7 @@ ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int widt
     }
 
     return new Direct2DPixelData (format, width, height, clearImage);
+#endif
 }
 
 //==============================================================================
