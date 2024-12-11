@@ -76,7 +76,8 @@ struct PluginUtilities
         if ((index == (int32) ByteOrder::bigEndianInt ("stCA") || index == (int32) ByteOrder::bigEndianInt ("stCa"))
             && value == (int32) ByteOrder::bigEndianInt ("FUID") && ptr != nullptr)
         {
-            const auto uidString = VST3ClientExtensions::convertVST2PluginId (JucePlugin_VSTUniqueID, JucePlugin_Name, VST3ClientExtensions::InterfaceType::component);
+            std::array<std::byte, 16> uidData = VST3ClientExtensions::convertVST2PluginId (JucePlugin_VSTUniqueID, JucePlugin_Name, VST3ClientExtensions::InterfaceType::component);
+            auto uidString = juce::String::createStringFromData(uidData.data(), uidData.size());
             MemoryBlock uidValue;
             uidValue.loadFromHexString (uidString);
             uidValue.copyTo (ptr, 0, uidValue.getSize());
