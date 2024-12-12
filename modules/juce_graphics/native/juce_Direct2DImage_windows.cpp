@@ -652,7 +652,7 @@ auto Direct2DPixelData::getPagesForContext (ComSmartPtr<ID2D1DeviceContext1> con
 
 //==============================================================================
 
-extern bool _runningUnderWine();
+extern bool _forceSoftwareRenderer();
 
 ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
 {
@@ -663,7 +663,7 @@ ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int widt
 
 	bool softwareFallback = false;
 	if (directX->adapters.getFactory() == nullptr) softwareFallback = true;
-	if (_runningUnderWine()) softwareFallback = true;
+	if (_forceSoftwareRenderer()) softwareFallback = true;
 
     if (softwareFallback)
     {

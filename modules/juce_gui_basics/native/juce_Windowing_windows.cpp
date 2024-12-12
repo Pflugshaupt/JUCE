@@ -4704,6 +4704,7 @@ MultiTouchMapper<DWORD> HWNDComponentPeer::currentTouches;
 ModifierKeys HWNDComponentPeer::modifiersAtLastCallback;
 
 // wine detection for rendering engine switch
+namespace {
 bool _runningUnderWine() {
 	static bool isWine = []{
 		auto hntdll = GetModuleHandleA("ntdll.dll");
@@ -4714,6 +4715,11 @@ bool _runningUnderWine() {
 	}();
 	return isWine;
 }
+}
+
+bool _forceSoftwareRenderer() {
+	return _runningUnderWine();
+}
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
@@ -4721,8 +4727,7 @@ ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
     return new HWNDComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, 0 };
 #else
 	int engine = 1;
-	if (_runningUnderWine()) engine = 0;
-	engine = 0;
+	if (_forceSoftwareRenderer()) engine = 0;
 	return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, engine };
 #endif
 }
