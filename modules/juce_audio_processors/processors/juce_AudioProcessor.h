@@ -1566,8 +1566,10 @@ private:
     static bool containsLayout (const BusesLayout&, const Array<InOutChannelPair>&);
 
     //==============================================================================
+protected:
     void createBus (bool isInput, const BusProperties&);
-
+    
+private:
     //==============================================================================
     Array<AudioProcessorListener*> listeners;
     Component::SafePointer<AudioProcessorEditor> activeEditor;
@@ -1607,7 +1609,9 @@ private:
     void checkForDuplicateGroupIDs (const AudioProcessorParameterGroup&);
 
     AudioProcessorListener* getListenerLocked (int) const noexcept;
+protected:
     void updateSpeakerFormatStrings();
+private:
     void audioIOChanged (bool busNumberChanged, bool channelNumChanged);
     void getNextBestLayout (const BusesLayout&, BusesLayout&) const;
 
