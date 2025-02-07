@@ -61,7 +61,7 @@ void DropShadow::drawForPath (Graphics& g, const Path& path) const
 {
     jassert (radius > 0);
 
-    const auto scale = g.getInternalContext().getPhysicalPixelScaleFactor();
+    const auto scale = 1.f; //g.getInternalContext().getPhysicalPixelScaleFactor();
     auto area = (path.getBounds().getSmallestIntegerContainer() + offset)
             .expanded (radius + 1)
             .getIntersection (g.getClipBounds().expanded (radius + 1));
