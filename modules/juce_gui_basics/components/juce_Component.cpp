@@ -2189,6 +2189,7 @@ static inline bool _proToolsAutomationMods(Component *c) {
     // some events need to be blocked based on modifiers, which are tricky on windows.
 #if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
 #if JUCE_WINDOWS
+    if (c == nullptr) return false;
     auto* peer = c->getPeer();
     if (auto modrec = dynamic_cast<juce::ModifierKeyReceiver*>(peer)) {
         if (auto modprov = modrec->getModifierKeyProvider()) {
@@ -2264,7 +2265,7 @@ void Component::internalMouseDown (SafePointer<Component> target,
         target->repaint();
 
     // prevent protools automation shortcut mouse events from going through
-    _proToolsAutomationModsDown = _proToolsAutomationMods(this);
+    _proToolsAutomationModsDown = _proToolsAutomationMods(target.getComponent());
     if (!_proToolsAutomationModsDown)
         target->mouseDown (me);
 
