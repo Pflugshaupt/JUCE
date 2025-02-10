@@ -1458,6 +1458,32 @@ void Direct2DGraphicsContext::strokePath (const Path& p, const PathStrokeType& s
     deviceContext->DrawGeometry (geometry, brush, strokeType.getStrokeThickness(), strokeStyle);
 }
 
+void Direct2DGraphicsContext::strokeDashedPath (const Path& p, const float* dashLengths, int numDashLengths, float thickness, const AffineTransform& transform) 
+{
+    if (p.isEmpty() || thickness == 0.f)
+        return;
+
+    applyPendingClipList();
+
+    const auto deviceContext = getPimpl()->getDeviceContext();
+    const auto brush = currentState->getBrush (SavedState::applyFillTypeTransform);
+    const auto factory = getPimpl()->getDirect2DFactory();
+    const auto strokeStyle = D2DHelpers::dashPatternToStrokeStyle (factory, dashLengths, numDashLengths, thickness);
+    const auto geometry = D2DHelpers::pathToPathGeometry (factory,
+                                                          p,
+                                                          transform,
+                                                          D2D1_FIGURE_BEGIN_HOLLOW,
+                                                          metrics.get());
+
+    if (deviceContext == nullptr || brush == nullptr || geometry == nullptr || strokeStyle == nullptr)
+        return;
+
+    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, drawGeometryTime)
+
+    ScopedTransform scopedTransform { *getPimpl(), currentState };
+    deviceContext->DrawGeometry (geometry, brush, thickness, strokeStyle);
+}
+
 void Direct2DGraphicsContext::drawImage (const Image& imageIn, const AffineTransform& transform)
 {
     JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, drawImageTime)

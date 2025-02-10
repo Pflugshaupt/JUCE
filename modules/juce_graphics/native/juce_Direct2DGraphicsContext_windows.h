@@ -94,6 +94,7 @@ public:
 
     void drawRect (const Rectangle<float>&, float) override;
     void strokePath (const Path&, const PathStrokeType& strokeType, const AffineTransform&) override;
+    void strokeDashedPath (const Path& path, const float* dashLengths, int numDashLengths, float thickness, const AffineTransform& transform) override;
 
     void drawRoundedRectangle (const Rectangle<float>& area, float cornerSize, float lineThickness) override;
     void fillRoundedRectangle (const Rectangle<float>& area, float cornerSize) override;
