@@ -763,10 +763,6 @@ void _createDashedPath(Path &destPath,
 
 void CoreGraphicsContext::strokeDashedPath (const Path& path, const float* dashLengths, int numDashLengths, float thickness, const AffineTransform& transform)
 {
-    // due to macOS bugs, let's do the dashes by hand, macOS can still deal with the stroke width etc.
-    Path p2;
-    _createDashedPath(p2, path, dashLengths, numDashLengths, transform.translated(0.f, 0.f), 1);
- 
     CGContextSetLineWidth (context.get(), thickness);
     CGContextSetLineCap (context.get(), kCGLineCapButt);
     CGContextSetLineJoin (context.get(), kCGLineJoinMiter);
@@ -784,11 +780,15 @@ void CoreGraphicsContext::strokeDashedPath (const Path& path, const float* dashL
         CGContextSetLineDash(context.get(), 0, dashes.data(), numDashLengths);
     }
     createPath (path, transform);
-#else
-    createPath (p2, transform);
-#endif
     drawCurrentPath (kCGPathStroke);
     CGContextSetLineDash(context.get(), 0, nullptr, 0);
+#else
+    // due to macOS bugs, let's do the dashes by hand, macOS can still deal with the stroke width etc.
+    Path p2;
+    _createDashedPath(p2, path, dashLengths, numDashLengths, transform.translated(0.f, 0.f), 1);
+    createPath (p2, transform);
+    drawCurrentPath (kCGPathStroke);
+#endif
 }
 
 void CoreGraphicsContext::drawEllipse (const Rectangle<float>& area, float lineThickness)
