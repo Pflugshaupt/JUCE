@@ -87,6 +87,8 @@ public:
     void fillRectList (const RectangleList<float>&) override;
     void fillPath (const Path&, const AffineTransform&) override;
     void strokePath (const Path& path, const PathStrokeType& strokeType, const AffineTransform& transform) override;
+    void strokeDashedPath (const Path& path, const float* dashLengths, int numDashLengths, float thickness, const AffineTransform& transform) override;
+
     void drawImage (const Image& sourceImage, const AffineTransform&) override;
 
     //==============================================================================

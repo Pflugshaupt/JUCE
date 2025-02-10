@@ -610,6 +610,19 @@ void Graphics::strokePath (const Path& path,
         context.strokePath (path, strokeType, transform);
 }
 
+void Graphics::strokeDashedPath (const Path& path,
+                     const float* dashLengths,
+                     int numDashLengths,
+                     float lineThickness,
+                     const AffineTransform& transform) const
+{
+   // JUCE_SCOPED_TRACE_EVENT_FRAME (etw::strokeDashedPath, etw::graphicsKeyword, context.getFrameId())
+
+    if (! (context.isClipEmpty() || path.isEmpty()))
+        context.strokeDashedPath (path, dashLengths, numDashLengths, lineThickness, transform);
+}
+
+
 //==============================================================================
 void Graphics::drawRect (float x, float y, float width, float height, float lineThickness) const
 {

@@ -706,6 +706,27 @@ void CoreGraphicsContext::strokePath (const Path& path, const PathStrokeType& st
     drawCurrentPath (kCGPathStroke);
 }
 
+void CoreGraphicsContext::strokeDashedPath (const Path& path, const float* dashLengths, int numDashLengths, float thickness, const AffineTransform& transform)
+{
+    CGContextSetLineWidth (context.get(), thickness);
+    CGContextSetLineCap (context.get(), kCGLineCapButt);
+    CGContextSetLineJoin (context.get(), kCGLineJoinMiter);
+    // CFFloat is double.. conversion is required.
+    // avoid allocating for short patterns
+    if (numDashLengths <= 8) {
+        std::array<CGFloat, 8> dashes;
+        for (int i = 0; i < numDashLengths; ++i) dashes[i] = dashLengths[i];
+        CGContextSetLineDash(context.get(), 0, dashes.data(), numDashLengths);
+    } else {
+        std::vector<CGFloat> dashes(numDashLengths);
+        for (int i = 0; i < numDashLengths; ++i) dashes[i] = dashLengths[i];
+        CGContextSetLineDash(context.get(), 0, dashes.data(), numDashLengths);
+    }
+    createPath (path, transform);
+    drawCurrentPath (kCGPathStroke);
+    CGContextSetLineDash(context.get(), 0, nullptr, 0);
+}
+
 void CoreGraphicsContext::drawEllipse (const Rectangle<float>& area, float lineThickness)
 {
     CGContextBeginPath (context.get());

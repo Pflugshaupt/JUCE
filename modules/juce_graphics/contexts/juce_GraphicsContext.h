@@ -449,6 +449,13 @@ public:
                      const PathStrokeType& strokeType,
                      const AffineTransform& transform = {}) const;
 
+    /// draw stroke path (using GPU if possible)
+    void strokeDashedPath (const Path& path,
+                     const float* dashLengths,
+                     int numDashLengths,
+                     float lineThickness,
+                     const AffineTransform& transform = {}) const;
+
     /** Draws a line with an arrowhead at its end.
 
         @param line             the line to draw

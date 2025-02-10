@@ -119,6 +119,13 @@ public:
         fillPath (stroke, {});
     }
 
+    virtual void strokeDashedPath (const Path& path, const float* dashLengths, int numDashLengths, float thickness, const AffineTransform& transform)
+    {
+        Path stroke;
+        PathStrokeType(thickness).createDashedStroke (stroke, path, dashLengths, numDashLengths, transform, 1);
+        fillPath (stroke, {});
+    }
+
     virtual void drawImage (const Image&, const AffineTransform&) = 0;
     virtual void drawLine (const Line<float>&) = 0;
 
