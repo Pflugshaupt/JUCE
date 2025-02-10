@@ -713,11 +713,13 @@ void PathStrokeType::createDashedStroke (Path& destPath,
                 return;
             }
 
-            if (isSolid && ! first)
-                newDestPath.lineTo (it.x1, it.y1);
-            else
-                newDestPath.startNewSubPath (it.x1, it.y1);
-
+            if (isSolid) {
+                if (!first)
+                    newDestPath.lineTo (it.x1, it.y1);
+                else
+                    newDestPath.startNewSubPath (it.x1, it.y1);
+            }
+            
             dx = it.x2 - it.x1;
             dy = it.y2 - it.y1;
             lineLen = juce_hypot (dx, dy);
