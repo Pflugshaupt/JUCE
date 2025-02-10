@@ -706,11 +706,72 @@ void CoreGraphicsContext::strokePath (const Path& path, const PathStrokeType& st
     drawCurrentPath (kCGPathStroke);
 }
 
+/// alg taken from juce::PathStrokeType - but without CreateStrokedPath
+void _createDashedPath(Path &destPath,
+    const Path &sourcePath,
+    const float *dashLengths,
+    int numDashLengths,
+    const AffineTransform &transform,
+    float extraAccuracy) {
+    //
+    jassert(extraAccuracy > 0);
+
+    destPath.clear();
+    PathFlatteningIterator it(sourcePath, transform, Path::defaultToleranceForMeasurement / extraAccuracy);
+
+    bool first = true;
+    int dashNum = 0;
+    float pos = 0.0f, lineLen = 0.0f, lineEndPos = 0.0f;
+    float dx = 0.0f, dy = 0.0f;
+
+    for (;;) {
+        const bool isSolid = ((dashNum & 1) == 0);
+        const float dashLen = dashLengths[dashNum++ % numDashLengths];
+
+        jassert(dashLen >= 0);  // must be a positive increment!
+        if (dashLen <= 0) continue;
+
+        pos += dashLen;
+
+        while (pos > lineEndPos) {
+            if (!it.next()) {
+                if (isSolid && !first) destPath.lineTo(it.x2, it.y2);
+                return;
+            }
+
+            if (isSolid) {
+                if (!first)
+                    destPath.lineTo(it.x1, it.y1);
+                else
+                    destPath.startNewSubPath(it.x1, it.y1);
+            }
+
+            dx = it.x2 - it.x1;
+            dy = it.y2 - it.y1;
+            lineLen = juce_hypot(dx, dy);
+            lineEndPos += lineLen;
+            first = it.closesSubPath;
+        }
+
+        const float alpha = (pos - (lineEndPos - lineLen)) / lineLen;
+        if (isSolid)
+            destPath.lineTo(it.x1 + dx * alpha, it.y1 + dy * alpha);
+        else
+            destPath.startNewSubPath(it.x1 + dx * alpha, it.y1 + dy * alpha);
+    }
+}
+
 void CoreGraphicsContext::strokeDashedPath (const Path& path, const float* dashLengths, int numDashLengths, float thickness, const AffineTransform& transform)
 {
+    // due to macOS bugs, let's do the dashes by hand, macOS can still deal with the stroke width etc.
+    Path p2;
+    _createDashedPath(p2, path, dashLengths, numDashLengths, transform.translated(0.f, 0.f), 1);
+ 
     CGContextSetLineWidth (context.get(), thickness);
     CGContextSetLineCap (context.get(), kCGLineCapButt);
     CGContextSetLineJoin (context.get(), kCGLineJoinMiter);
+#if 0
+    // it seems that CGContextSetLineDash is buggy and sometimes just starts over the pattern without any reason :(
     // CFFloat is double.. conversion is required.
     // avoid allocating for short patterns
     if (numDashLengths <= 8) {
@@ -723,6 +784,9 @@ void CoreGraphicsContext::strokeDashedPath (const Path& path, const float* dashL
         CGContextSetLineDash(context.get(), 0, dashes.data(), numDashLengths);
     }
     createPath (path, transform);
+#else
+    createPath (p2, transform);
+#endif
     drawCurrentPath (kCGPathStroke);
     CGContextSetLineDash(context.get(), 0, nullptr, 0);
 }
