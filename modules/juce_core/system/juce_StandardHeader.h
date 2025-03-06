@@ -176,3 +176,6 @@ JUCE_END_IGNORE_WARNINGS_MSVC
 #ifndef DOXYGEN
  #define JUCE_NAMESPACE juce  // This old macro is deprecated: you should just use the juce namespace directly.
 #endif
+
+/// allow using apulSoft patches in codebase. Currently this means fixes for Wine and some drawing optimization shortcuts
+#define AP_JUCE_PATCHES (1)
