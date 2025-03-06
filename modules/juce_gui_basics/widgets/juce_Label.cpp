@@ -237,9 +237,11 @@ void Label::showEditor()
         editor->addListener (this);
         editor->grabKeyboardFocus();
 
-		/** Acon Digital modification - allow edit boxes with centerred text */
+		// Acon Digital modification - allow edit boxes with centerred text 
         if (getJustificationType().testFlags (Justification::horizontallyCentred))
             editor->setJustification (Justification::centredTop);
+		else if (getJustificationType().getFlags() == Justification::centredRight)
+			editor->setJustification (Justification::centredRight);
 
         if (editor == nullptr) // may be deleted by a callback
             return;
