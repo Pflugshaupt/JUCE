@@ -1435,7 +1435,7 @@ void Direct2DGraphicsContext::strokePath (const Path& p, const PathStrokeType& s
 {
     JUCE_SCOPED_TRACE_EVENT_FRAME (etw::drawPath, etw::direct2dKeyword, getFrameId());
 
-    if (auto b = p.getBounds(); b.getWidth() == 0.f && b.getHeight() == 0.f)
+    if (p.getBounds().isEmpty())
         return;
 
     applyPendingClipList();
