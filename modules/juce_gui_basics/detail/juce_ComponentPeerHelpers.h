@@ -32,54 +32,18 @@
   ==============================================================================
 */
 
-namespace juce
+#if JUCE_MAC
+
+namespace juce::detail
 {
 
-template <typename T>
-static constexpr bool contains (std::initializer_list<T> span, const T& b)
+struct ComponentPeerHelpers
 {
-    for (const auto& i : span)
-        if (i == b)
-            return true;
+    ComponentPeerHelpers() = delete;
 
-    return false;
-}
-
-struct UnicodeAnalysisPoint
-{
-    char32_t character = 0;
-    UnicodeEntry data{};
-
-    UnicodeAnalysisPoint (char32_t characterIn, UnicodeEntry entry)
-        : character { characterIn },
-          data { std::move (entry) }
-    {}
-
-    LineBreakType getBreakType() const
-    {
-        return data.bt;
-    }
-
-    auto getGeneralCategory() const
-    {
-        return SBCodepointGetGeneralCategory (character);
-    }
-
-    auto getScriptType() const
-    {
-        return SBCodepointGetScript (character);
-    }
+    static bool isInPerformKeyEquivalent (const ComponentPeer& peer);
 };
 
-//==============================================================================
-/*  Types of breaks between characters. */
-enum class TextBreakType
-{
-    none, // The sequence of characters should not be broken.
+} // namespace juce::detail
 
-    soft, // The sequence of characters can be broken, if required.
-
-    hard  // The sequence of characters must be broken here.
-};
-
-} // namespace juce
+#endif
