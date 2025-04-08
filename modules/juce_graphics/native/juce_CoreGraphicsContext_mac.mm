@@ -707,7 +707,7 @@ void CoreGraphicsContext::strokePath (const Path& path, const PathStrokeType& st
 }
 
 /// alg taken from juce::PathStrokeType - but without CreateStrokedPath
-void _createDashedPath(Path &destPath,
+inline void _createDashedPath(Path &destPath,
     const Path &sourcePath,
     const float *dashLengths,
     int numDashLengths,
