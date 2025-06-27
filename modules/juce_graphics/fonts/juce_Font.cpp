@@ -220,7 +220,7 @@ public:
         const ScopedLock lock (mutex);
 
         if (auto ptr = getTypefacePtr (f))
-            return ptr->getNativeDetails().getFontAtPointSizeAndScale (f.getHeightInPoints(), f.getHorizontalScale());
+            return ptr->getNativeDetails().getFontAtPointSizeAndScale (f.getHeightInPoints(), f.getHorizontalScale(), f.getVariations());
 
         return {};
     }
@@ -284,6 +284,7 @@ public:
 
     std::optional<float> getAscentOverride() const  { return options.getAscentOverride(); }
     std::optional<float> getDescentOverride() const { return options.getDescentOverride(); }
+    std::vector<FontVariation> getVariations() const { return options.getVariations(); }
 
     /*  This shared state may be shared between two or more Font instances that are being
         read/modified from multiple threads.
@@ -756,6 +757,11 @@ void Font::setDescentOverride (std::optional<float> x)
     font->setDescentOverride (x);
 }
 
+std::vector<FontVariation> Font::getVariations() const
+{
+    return font->getVariations();
+}
+
 Font Font::boldened() const                 { return withStyle (getStyleFlags() | bold); }
 Font Font::italicised() const               { return withStyle (getStyleFlags() | italic); }
 
@@ -1108,6 +1114,33 @@ public:
             auto c = b.withTypeface (nullptr).withName ("name").withStyle ("style");
             expect (c.getName() == "name");
             expect (c.getStyle() == "style");
+        }
+
+        beginTest ("FontOptions with variations");
+        {
+            const auto opt = FontOptions().withHeight (20.0f);
+            const auto variations = std::vector<FontVariation>
+            {
+                { FontVariation::Tag ("wght"), 700.0f },
+                { FontVariation::Tag ("wdth"), 100.0f }
+            };
+            
+            const auto optWithVariations = opt.withVariations (variations);
+            expect (optWithVariations.getVariations() == variations);
+            
+            // Test single variation addition using string
+            const auto optWithSingle = opt.withVariation (FontVariation::Tag ("ital"), 1.0f);
+            expect (optWithSingle.getVariations().size() == 1);
+            expect (optWithSingle.getVariations()[0].tag == FontVariation::Tag ("ital"));
+            expect (optWithSingle.getVariations()[0].value == 1.0f);
+            
+            // Test variation replacement
+            const auto optReplaced = optWithSingle.withVariation (FontVariation::Tag ("ital"), 0.5f);
+            expect (optReplaced.getVariations().size() == 1);
+            expect (optReplaced.getVariations()[0].value == 0.5f);
+            
+            // Test string conversion
+            expect (optWithSingle.getVariations()[0].tag.toString() == "ital");
         }
     }
 };

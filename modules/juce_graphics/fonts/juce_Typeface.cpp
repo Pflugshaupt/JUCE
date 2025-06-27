@@ -54,6 +54,72 @@ public:
 };
 
 //==============================================================================
+struct HbTag
+{
+    static constexpr hb_tag_t createTag (const char (&arr)[5])
+    {
+        return HB_TAG (arr[0], arr[1], arr[2], arr[3]);
+    }
+    
+    static hb_tag_t createTag (const String& s)
+    {
+        const auto str = s.trimEnd();
+        char chars[4] = { ' ', ' ', ' ', ' ' };
+        
+        const auto len = std::min (4, str.length());
+        for (auto i = 0; i < len; ++i)
+        {
+            char c = static_cast<char> (str[i]);
+            
+            // OpenType font tags must be printable ASCII characters (0x20-0x7E)
+            if (c < 0x20 || c > 0x7E)
+                c = ' '; // Replace invalid chars with space
+            
+            chars[i] = c;
+        }
+        
+        return HB_TAG (chars[0], chars[1], chars[2], chars[3]);
+    }
+    
+    static String toString (hb_tag_t tag, bool trimSpaces = true)
+    {
+        char str[5] = { 0 };
+        str[0] = static_cast<char> ((tag >> 24) & 0xFF);
+        str[1] = static_cast<char> ((tag >> 16) & 0xFF);
+        str[2] = static_cast<char> ((tag >> 8) & 0xFF);
+        str[3] = static_cast<char> (tag & 0xFF);
+        
+        if (! trimSpaces)
+            return String (str);
+        
+        // Find last non-space character.
+        auto lastNonSpace = -1;
+        for (auto i = 0; i < 4; ++i)
+        {
+            if (str[i] != ' ')
+                lastNonSpace = i;
+        }
+        
+        if (lastNonSpace == -1)
+            return String (" "); // All spaces - return single space
+        
+        str[lastNonSpace + 1] = '\0';
+        return String (str);
+    }
+    
+    static constexpr bool isRegisteredAxis (hb_tag_t tag)
+    {
+        return tag == HB_TAG ('w','g','h','t')  // Weight
+            || tag == HB_TAG ('w','d','t','h')  // Width
+            || tag == HB_TAG ('s','l','n','t')  // Slant
+            || tag == HB_TAG ('i','t','a','l')  // Italic
+            || tag == HB_TAG ('o','p','s','z')  // Optical size
+            || tag == HB_TAG ('g','r','a','d')  // Grade
+            || tag == HB_TAG ('s','l','a','n'); // Slant (deprecated)
+    }
+};
+
+//==============================================================================
 #if JUCE_MAC || JUCE_IOS
 template <CTFontOrientation orientation>
 void getAdvancesForGlyphs (hb_font_t* hbFont, CTFontRef ctFont, Span<const CGGlyph> glyphs, Span<CGSize> advances)
@@ -209,8 +275,20 @@ public:
         return {};
     }
 
-    HbFont getFontAtPointSizeAndScale (float points, float horizontalScale) const
+    HbFont getFontAtPointSizeAndScale (float points, float horizontalScale, const std::vector<FontVariation>& variations = {}) const
     {
+        // Apply variations to the parent font if any
+        if (! variations.empty())
+        {
+            std::vector<hb_variation_t> hbVariations;
+            hbVariations.reserve (variations.size());
+            
+            for (const auto& variation : variations)
+                hbVariations.push_back ({ static_cast<hb_tag_t> (variation.tag.tag), variation.value });
+            
+            hb_font_set_variations (font, hbVariations.data(), (unsigned int) hbVariations.size());
+        }
+        
         HbFont subFont { hb_font_create_sub_font (font) };
 
         hb_font_set_ptem (subFont.get(), points);
@@ -622,6 +700,58 @@ static constexpr auto hbTag (const char (&arr)[5])
     return HB_TAG (arr[0], arr[1], arr[2], arr[3]);
 }
 
+std::vector<Typeface::VariationAxisInfo> Typeface::getVariationAxes() const
+{
+    auto* font = getNativeDetails().getFont();
+    if (font == nullptr)
+        return {};
+
+    auto* face = hb_font_get_face (font);
+    const auto axisCount = hb_ot_var_get_axis_count (face);
+    
+    if (axisCount == 0)
+        return {};
+
+    std::vector<hb_ot_var_axis_info_t> axisInfos (axisCount);
+    unsigned int count = axisCount;
+    hb_ot_var_get_axis_infos (face, 0, &count, axisInfos.data());
+
+    std::vector<VariationAxisInfo> result;
+    result.reserve (axisCount);
+
+    for (const auto& axis : axisInfos)
+    {
+        VariationAxisInfo info;
+        info.tag = axis.tag;
+        info.tagString = HbTag::toString (axis.tag);
+        
+        // Get the axis name
+        char nameBuffer[256] = {};
+        unsigned int nameLength = sizeof (nameBuffer) - 1;
+        
+        if (hb_ot_name_get_utf8 (face, axis.name_id, HB_LANGUAGE_INVALID, &nameLength, nameBuffer) > 0)
+        {
+            info.name = String::fromUTF8 (nameBuffer, static_cast<int> (nameLength));
+        }
+        else
+        {
+            // Fallback to tag string if name lookup fails.
+            info.name = info.tagString;
+        }
+        
+        info.minValue = axis.min_value;
+        info.maxValue = axis.max_value;
+        info.defaultValue = axis.default_value;
+        info.flags = axis.flags;
+        info.nameID = axis.name_id;
+        info.isRegistered = HbTag::isRegisteredAxis (axis.tag);
+        
+        result.push_back (info);
+    }
+
+    return result;
+}
+
 template <typename Consumer>
 static float doSimpleShapeWithNoBreaks (const Typeface& typeface,
                                         TypefaceMetricsKind kind,
@@ -966,6 +1096,25 @@ public:
                         expect (pair.second == currentPositions.end());
                     }
                 }
+            }
+        }
+
+        beginTest ("Variable font axis queries");
+        {
+            // Most standard fonts won't have variation axes, but we should still test the API
+            const auto axes = ptr->getVariationAxes();
+            
+            // Test that the method returns a valid result (likely empty for non-variable fonts)
+            expect (axes.empty() || axes.size() > 0);
+            
+            // If we have axes, check their validity
+            for (const auto& axis : axes)
+            {
+                expect (axis.tag != 0);
+                expect (axis.tagString.isNotEmpty());
+                expect (axis.minValue <= axis.defaultValue);
+                expect (axis.defaultValue <= axis.maxValue);
+                expect (axis.name.isNotEmpty());
             }
         }
     }

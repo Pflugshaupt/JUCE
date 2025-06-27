@@ -315,6 +315,26 @@ public:
     */
     std::optional<uint32_t> getNominalGlyphForCodepoint (juce_wchar) const;
 
+    //==============================================================================
+    /** Information about a variable font axis. */
+    struct VariationAxisInfo
+    {
+        uint32_t tag;       ///< The axis tag as a 32-bit integer
+        String tagString;   ///< Tag as 4-character string (e.g., "wght")
+        String name;        ///< Human-readable name of the axis (e.g., "Weight")
+        float minValue;     ///< Minimum value for this axis
+        float maxValue;     ///< Maximum value for this axis
+        float defaultValue; ///< Default value for this axis
+        bool isRegistered;  ///< True if this is a registered (standard) axis
+        uint16_t flags;     ///< Axis flags (from fvar table)
+        uint16_t nameID;    ///< Name ID reference in the name table
+    };
+
+    /** Returns information about all available variation axes in this typeface.
+        For non-variable fonts, this will return an empty array.
+    */
+    std::vector<VariationAxisInfo> getVariationAxes() const;
+
     /** @internal */
     class Native;
 
