@@ -4791,9 +4791,6 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HWNDComponentPeer)
 };
 
-MultiTouchMapper<DWORD> HWNDComponentPeer::currentTouches;
-ModifierKeys HWNDComponentPeer::modifiersAtLastCallback;
-
 // wine detection for rendering engine switch
 namespace {
 bool _runningUnderWine() {
