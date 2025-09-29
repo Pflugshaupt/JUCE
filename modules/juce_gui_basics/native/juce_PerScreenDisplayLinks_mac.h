@@ -138,15 +138,7 @@ public:
                                   CVOptionFlags*,
                                   void* context) -> int
         {
-        
-            double outputTimeSec;
-            if (outputTime->flags & kCVTimeStampVideoTimeValid) {
-                outputTimeSec = (double) outputTime->videoTime / (double) outputTime->videoTimeScale;
-            } else {
-                outputTimeSec = juce::Time::getMillisecondCounterHiRes() * 0.001;
-                // Alternative: outputTimeSec = (double)CVGetCurrentHostTime() / (double)CVGetHostClockFrequency();
-            }
-            
+            const auto outputTimeSec = (double) outputTime->videoTime / (double) outputTime->videoTimeScale;
             static_cast<const ScopedDisplayLink*> (context)->onCallback (outputTimeSec);
             return kCVReturnSuccess;
         };
