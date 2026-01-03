@@ -159,6 +159,7 @@ namespace Ids
     DECLARE_ID (msvcModuleDefinitionFile);
     DECLARE_ID (bigIcon);
     DECLARE_ID (smallIcon);
+    DECLARE_ID (iconComposerIcon);
     DECLARE_ID (prebuildCommand);
     DECLARE_ID (postbuildCommand);
     DECLARE_ID (useRuntimeLibDLL);
@@ -268,6 +269,7 @@ namespace Ids
     DECLARE_ID (androidScreenOrientation);
     DECLARE_ID (androidExtraAssetsFolder);
     DECLARE_ID (androidStudioExePath);
+    DECLARE_ID (androidEnableVirtualMidi);
     DECLARE_ID (iosDeviceFamily);
     const Identifier iPhoneScreenOrientation ("iosScreenOrientation"); // old name is confusing
     DECLARE_ID (iPadScreenOrientation);

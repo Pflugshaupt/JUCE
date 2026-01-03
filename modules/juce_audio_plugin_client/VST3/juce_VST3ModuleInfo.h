@@ -241,7 +241,7 @@ public:
         {
             if (doUIDsMatch (entry.infoW.cid, cid))
             {
-                if (auto instance = becomeVSTComSmartPtrOwner (createInstance (entry)))
+                if (VSTComSmartPtr instance { createInstance (entry), IncrementRef::no })
                 {
                     if (instance->queryInterface (iidToQuery, obj) == Steinberg::kResultOk)
                         return Steinberg::kResultOk;
@@ -360,7 +360,9 @@ private:
             return Steinberg::kInvalidArgument;
         }
 
+        JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wclass-memaccess")
         std::memcpy (info, &(getClassEntry (index).*source), sizeof (*info));
+        JUCE_END_IGNORE_WARNINGS_GCC_LIKE
         return Steinberg::kResultOk;
     }
 

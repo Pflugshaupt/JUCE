@@ -45,28 +45,11 @@ enum class TextDirection
 class ShapedTextOptions
 {
 private:
-    auto tie() const
-    {
-        return std::tie (justification,
-                         readingDir,
-                         wordWrapWidth,
-                         alignmentWidth,
-                         height,
-                         fontsForRange,
-                         language,
-                         firstLineIndent,
-                         leading,
-                         additiveLineSpacing,
-                         baselineAtZero,
-                         allowBreakingInsideWord,
-                         trailingWhitespacesShouldFit,
-                         maxNumLines,
-                         ellipsis);
-    }
+    auto tie() const;
 
 public:
-    bool operator== (const ShapedTextOptions& other) const { return tie() == other.tie(); }
-    bool operator!= (const ShapedTextOptions& other) const { return tie() != other.tie(); }
+    bool operator== (const ShapedTextOptions& other) const;
+    bool operator!= (const ShapedTextOptions& other) const;
 
     //==============================================================================
     [[nodiscard]] ShapedTextOptions withJustification (Justification x) const
@@ -130,11 +113,6 @@ public:
     [[nodiscard]] ShapedTextOptions withFonts (const detail::RangedValues<Font>& x) const
     {
         return withMember (*this, &ShapedTextOptions::fontsForRange, x);
-    }
-
-    [[nodiscard]] ShapedTextOptions withLanguage (StringRef x) const
-    {
-        return withMember (*this, &ShapedTextOptions::language, x);
     }
 
     [[nodiscard]] ShapedTextOptions withFirstLineIndent (float x) const
@@ -206,7 +184,6 @@ public:
     const auto& getAlignmentWidth() const               { return alignmentWidth; }
     const auto& getHeight() const                       { return height; }
     const auto& getFontsForRange() const                { return fontsForRange; }
-    const auto& getLanguage() const                     { return language; }
     const auto& getFirstLineIndent() const              { return firstLineIndent; }
     const auto& getLeading() const                      { return leading; }
     const auto& getAdditiveLineSpacing() const          { return additiveLineSpacing; }
@@ -232,7 +209,6 @@ private:
         return result;
     });
 
-    String language = SystemStats::getDisplayLanguage();
     float firstLineIndent = 0.0f;
     float leading = 1.0f;
     float additiveLineSpacing = 0.0f;
@@ -272,7 +248,7 @@ struct ShapedGlyph
     bool isPlaceholderForLigature() const { return distanceFromLigature > 0; }
 
     int8_t getDistanceFromLigature() const { return distanceFromLigature; }
-    int8_t getNumTrailingLigaturePlaceholders() const { return -distanceFromLigature; }
+    int8_t getNumTrailingLigaturePlaceholders() const { return (int8_t) -distanceFromLigature; }
 
     Point<float> advance;
     Point<float> offset;

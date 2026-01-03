@@ -37,8 +37,9 @@
  dependencies:     juce_audio_basics, juce_audio_devices, juce_audio_formats,
                    juce_audio_plugin_client, juce_audio_processors,
                    juce_audio_utils, juce_core, juce_data_structures,
-                   juce_events, juce_graphics, juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2022, linux_make
+                   juce_events, juce_graphics, juce_gui_basics, juce_gui_extra,
+                   juce_audio_processors_headless
+ exporters:        xcode_mac, vs2022, vs2026, linux_make
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -66,7 +67,8 @@
 #pragma once
 
 JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wshadow-field-in-constructor",
-                                     "-Wnon-virtual-dtor")
+                                     "-Wnon-virtual-dtor",
+                                     "-Wpragma-pack")
 
 #include <pluginterfaces/base/ftypes.h>
 #include <pluginterfaces/base/funknown.h>
