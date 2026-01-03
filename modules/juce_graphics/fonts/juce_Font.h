@@ -522,12 +522,6 @@ public:
     void setDescentOverride (std::optional<float>);
 
     //==============================================================================
-    /** Returns the font variations currently set on this font.
-        @see FontVariation, FontOptions::withVariations()
-    */
-    std::vector<FontVariation> getVariations() const;
-
-    //==============================================================================
     /** Changes all the font's characteristics with one call. */
     void setSizeAndStyle (float newHeight,
                           int newStyleFlags,

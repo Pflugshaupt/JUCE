@@ -36,85 +36,6 @@ namespace juce
 {
 
 /**
-    Represents a font variation axis setting.
-    
-    Font variations allow you to adjust continuous parameters like weight, width, 
-    or custom axes in variable fonts.
-    
-    @see FontOptions::withVariations()
-    
-    @tags{Graphics}
-*/
-struct JUCE_API FontVariation
-{
-    /** Represents a font variation axis tag. */
-    struct Tag
-    {
-        /** Default constructor. */
-        Tag() = default;
-        
-        /** Constructs a Tag from a 32-bit integer value. */
-        explicit Tag (uint32_t i) : tag (i) {}
-        
-        /** Constructs a Tag from a string (must be 4 characters or less). */
-        explicit Tag (const String& s);
-        
-        /** Constructs a Tag from a string reference (must be 4 characters or less). */
-        explicit Tag (StringRef s);
-        
-        /** Constructs a Tag from a C-style string (must be 4 characters or less). */
-        explicit Tag (const char* s);
-        
-        /** Returns the tag as a 4-character string. */
-        String toString() const;
-        
-        /** The tag value as a 32-bit integer. */
-        uint32_t tag = 0;
-        
-        /** Equality comparison. */
-        bool operator== (const Tag& other) const noexcept { return tag == other.tag; }
-        
-        /** Inequality comparison. */
-        bool operator!= (const Tag& other) const noexcept { return tag != other.tag; }
-        
-        /** Less-than comparison for use in sorted containers. */
-        bool operator<  (const Tag& other) const noexcept { return tag <  other.tag; }
-    };
-    
-    /** The variation axis tag (e.g., 'wght' for weight, 'wdth' for width) */
-    Tag tag;
-    
-    /** The value to set for this axis */
-    float value;
-    
-    /** Constructs a FontVariation with the specified Tag and value. */
-    FontVariation (Tag variationTag, float variationValue)
-        : tag (variationTag), value (variationValue) {}
-    
-    /** Constructs a FontVariation with the specified tag and value. */
-    FontVariation (juce::int32 variationTag, float variationValue)
-        : tag (static_cast<uint32_t> (variationTag)), value (variationValue) {}
-    
-    /** Equality comparison */
-    bool operator== (const FontVariation& other) const noexcept
-    {
-        return tag == other.tag && value == other.value;
-    }
-    
-    /** Inequality comparison */
-    bool operator!= (const FontVariation& other) const noexcept
-    {
-        return ! operator== (other);
-    }
-    
-    /** Less-than comparison for use in sorted containers */
-    bool operator< (const FontVariation& other) const noexcept
-    {
-        return std::tie (tag.tag, value) < std::tie (other.tag.tag, other.value);
-    }
-};
-
-/**
     Options that describe a particular font.
 
     Used to construct Font instances in a fluent style.
@@ -271,31 +192,6 @@ public:
 
     /** Returns a copy of these options with the specified feature disabled. */
     [[nodiscard]] FontOptions withFeatureDisabled (FontFeatureTag tag) const { return withFeatureSetting ({ tag, FontFeatureSetting::featureDisabled }); }
-    /** Returns a copy of these options with the specified font variations.
-        Font variations allow you to adjust continuous parameters in variable fonts.
-        
-        @param x A vector of FontVariation objects specifying axis tags and values
-    */
-    [[nodiscard]] FontOptions withVariations (std::vector<FontVariation> x) const { return withMember (*this, &FontOptions::variations, std::move (x)); }
-
-    /** Returns a copy of these options with a single font variation added or updated.
-        If a variation with the same tag already exists, it will be replaced.
-        
-        @param tag The variation axis tag (e.g., "wght" for weight, "wdth" for width)
-        @param value The value to set for this axis
-    */
-    [[nodiscard]] FontOptions withVariation (FontVariation::Tag tag, float value) const
-    {
-        auto copy = *this;
-        auto& vars = copy.variations;
-        auto it = std::find_if (vars.begin(), vars.end(), [tag] (const FontVariation& v) { return v.tag == tag; });
-        if (it != vars.end())
-            it->value = value;
-        else
-            vars.push_back ({ tag, value });
-        
-        return copy;
-    }
 
     /** @see withName() */
     [[nodiscard]] auto getName()             const { return name; }
@@ -327,8 +223,6 @@ public:
     /** @see withFeatureSetting() */
     [[nodiscard]] Span<const FontFeatureSetting> getFeatureSettings() const&  { return features; }
     [[nodiscard]] Span<const FontFeatureSetting> getFeatureSettings() const&& = delete;
-    /** @see withVariations() */
-    [[nodiscard]] auto getVariations()      const { return variations; }
 
     /** Equality operator. */
     [[nodiscard]] bool operator== (const FontOptions& other) const;
@@ -359,7 +253,6 @@ private:
     float descentOverride = -1.0f;
     bool fallbackEnabled = true;
     bool underlined{};
-    std::vector<FontVariation> variations;
 };
 
 } // namespace juce

@@ -50,22 +50,6 @@ struct FontValues
 
 float FontValues::minimumHorizontalScale = 0.7f;
 
-//==============================================================================
-FontVariation::Tag::Tag (const String& s)
-{
-    tag = HbTag::createTag (s);
-}
-
-FontVariation::Tag::Tag (StringRef s) : Tag (String (s)) {}
-
-FontVariation::Tag::Tag (const char* s) : Tag (String (s)) {}
-
-String FontVariation::Tag::toString() const
-{
-    return HbTag::toString (tag);
-}
-
-//==============================================================================
 FontOptions::FontOptions()
     : FontOptions (FontValues::defaultFontHeight, Font::plain)
 {
@@ -117,8 +101,7 @@ auto FontOptions::tie() const
                        tracking,
                        horizontalScale,
                        fallbackEnabled,
-                       underlined,
-                       variations);
+                       underlined);
 }
 
 struct FontFeatureSettingSortHelper
