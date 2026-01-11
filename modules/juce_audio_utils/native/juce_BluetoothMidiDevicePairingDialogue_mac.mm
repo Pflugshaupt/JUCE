@@ -166,8 +166,8 @@ private:
 };
 
 //==============================================================================
-bool BluetoothMidiDevicePairingDialogue::open (ModalComponentManager::Callback* exitCallback,
-                                               Rectangle<int>* bounds)
+bool BluetoothMidiDevicePairingDialogue::open (ModalComponentManager::Callback* /*exitCallback*/,
+                                               Rectangle<int>* /*bounds*/)
 {
 #if 0 // deactivated by AP to avoid having to link to CoreAudioKit because Apple screwed up macOS 10.12
     new BluetoothMidiSelectorWindowHelper (exitCallback, bounds);
