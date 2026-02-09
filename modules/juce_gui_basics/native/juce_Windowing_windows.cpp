@@ -4692,33 +4692,12 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HWNDComponentPeer)
 };
 
-// wine detection for rendering engine switch
-namespace {
-bool _runningUnderWine() {
-	static bool isWine = []{
-		auto hntdll = GetModuleHandleA("ntdll.dll");
-		if (!hntdll) return false;
-
-		auto pwine_get_version = GetProcAddress(hntdll, "wine_get_version");
-		return (pwine_get_version != nullptr);
-	}();
-	return isWine;
-}
-}
-
-bool _forceSoftwareRenderer() {
-	return _runningUnderWine();
-}
+extern bool juce_isRunningInWine();
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-#if AP_DISABLE_D2D
-    return new HWNDComponentPeer{ *this, styleFlags, (HWND)parentHWND, false, 0 };
-#else
-	int engine = 1;
-	if (_forceSoftwareRenderer()) engine = 0;
-	return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, engine };
-#endif
+    const auto renderer = juce_isRunningInWine() ? 0 : 1;
+    return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, renderer };
 }
 
 Image createSnapshotOfNativeWindow (void* nativeWindowHandle)

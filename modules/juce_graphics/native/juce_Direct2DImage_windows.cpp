@@ -1015,33 +1015,27 @@ auto Direct2DPixelData::getNativeExtensions() -> NativeExtensions
     return NativeExtensions { Wrapped { this } };
 }
 
+extern bool juce_isRunningInWine();
+
 //==============================================================================
 
 extern bool _forceSoftwareRenderer();
 
 ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
 {
-#if AP_DISABLE_D2D
-    return new SoftwarePixelData{ format, width, height, clearImage };
-#else
-    SharedResourcePointer<DirectX> directX;
-
-	bool softwareFallback = false;
-	if (directX->adapters.getFactory() == nullptr) softwareFallback = true;
-	if (_forceSoftwareRenderer()) softwareFallback = true;
-
-    if (softwareFallback)
+    if (! juce_isRunningInWine())
     {
+        SharedResourcePointer<DirectX> directX;
+
         // Make sure the DXGI factory exists
         //
         // The caller may be trying to create an Image from a static variable; if this is a DLL, then this is
-        // probably called from DllMain. You can't create a DXGI factory from DllMain, so fall back to a
-        // software image.
-        return new SoftwarePixelData { format, width, height, clearImage };
+        // probably called from DllMain. You can't create a DXGI factory from DllMain.
+        if (directX->adapters.getFactory() != nullptr)
+            return new Direct2DPixelData (format, width, height, clearImage);
     }
 
-    return new Direct2DPixelData (format, width, height, clearImage);
-#endif
+    return new SoftwarePixelData { format, width, height, clearImage };
 }
 
 //==============================================================================
