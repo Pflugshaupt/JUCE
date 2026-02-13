@@ -615,6 +615,7 @@ void Component::addToDesktop (int styleWanted, void* nativeWindowToAttachTo)
         ComponentBoundsConstrainer* currentConstrainer = nullptr;
         Rectangle<int> oldNonFullScreenBounds;
         int oldRenderingEngine = -1;
+        std::optional<double> oldCustomScale;
 
         if (peer != nullptr)
         {
@@ -625,6 +626,7 @@ void Component::addToDesktop (int styleWanted, void* nativeWindowToAttachTo)
             currentConstrainer = peer->getConstrainer();
             oldNonFullScreenBounds = peer->getNonFullScreenBounds();
             oldRenderingEngine = peer->getCurrentRenderingEngine();
+            oldCustomScale = peer->getCustomPlatformScaleFactor();
 
             flags.hasHeavyweightPeerFlag = false;
             Desktop::getInstance().removeDesktopComponent (this);
@@ -646,6 +648,8 @@ void Component::addToDesktop (int styleWanted, void* nativeWindowToAttachTo)
             peer = createNewPeer (styleWanted, nativeWindowToAttachTo);
 
             Desktop::getInstance().addDesktopComponent (this);
+
+            peer->setCustomPlatformScaleFactor (oldCustomScale);
 
             boundsRelativeToParent.setPosition (topLeft);
             peer->updateBounds();
@@ -998,7 +1002,7 @@ int Component::getParentHeight() const noexcept
 
 Rectangle<int> Component::getParentMonitorArea() const
 {
-    return Desktop::getInstance().getDisplays().getDisplayForRect (getScreenBounds())->userArea;
+    return Desktop::getInstance().getDisplays().getDisplayForRect (getScreenBounds())->userBounds.toNearestInt();
 }
 
 int Component::getScreenX() const                       { return getScreenPosition().x; }
