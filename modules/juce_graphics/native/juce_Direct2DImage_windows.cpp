@@ -1018,9 +1018,6 @@ auto Direct2DPixelData::getNativeExtensions() -> NativeExtensions
 extern bool juce_isRunningInWine();
 
 //==============================================================================
-
-extern bool _forceSoftwareRenderer();
-
 ImagePixelData::Ptr NativeImageType::create (Image::PixelFormat format, int width, int height, bool clearImage) const
 {
     if (! juce_isRunningInWine())
