@@ -105,6 +105,7 @@ std::unique_ptr<ScopedMessageBoxInterface> ScopedMessageBoxInterface::create (co
 
                 TASKDIALOGCONFIG config{};
 
+                config.dwFlags = parent ? TDF_POSITION_RELATIVE_TO_WINDOW : 0;
                 config.cbSize         = sizeof (config);
                 config.hwndParent     = parent;
                 config.pszWindowTitle = title.toWideCharPointer();
