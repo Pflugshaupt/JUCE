@@ -68,3 +68,6 @@ extras/Projucer/JUCECompileEngine.dylib
 CMakeUserPresets.json
 .editorconfig
 
+.clangd
+.clangd-juce
+generate_clangd_juce_context.py
