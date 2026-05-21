@@ -650,7 +650,7 @@ namespace AAXClasses
                 setOpaque (true);
                 setBroughtToFrontOnMouseClick (true);
 
-                pluginEditor.reset (plugin.createEditorIfNeeded());
+                pluginEditor.reset (plugin.createEditorAndMakeActive());
                 addAndMakeVisible (pluginEditor.get());
 
                 if (pluginEditor != nullptr)

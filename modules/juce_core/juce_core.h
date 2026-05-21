@@ -44,7 +44,7 @@
 
   ID:                 juce_core
   vendor:             juce
-  version:            8.0.12
+  version:            8.0.13
   name:               JUCE core classes
   description:        The essential set of basic JUCE classes, as required by all the other JUCE modules. Includes text, container, memory, threading and i/o functionality.
   website:            http://www.juce.com/juce
@@ -308,6 +308,7 @@ JUCE_END_IGNORE_WARNINGS_MSVC
 #include "containers/juce_DynamicObject.h"
 #include "containers/juce_HashMap.h"
 #include "containers/juce_FixedSizeFunction.h"
+#include "time/juce_TimeUnits.h"
 #include "time/juce_RelativeTime.h"
 #include "time/juce_Time.h"
 #include "streams/juce_InputStream.h"
@@ -360,6 +361,7 @@ JUCE_END_IGNORE_WARNINGS_MSVC
 #include "network/juce_WebInputStream.h"
 #include "streams/juce_URLInputSource.h"
 #include "time/juce_PerformanceCounter.h"
+#include "time/juce_TimedDiagnostic.h"
 #include "unit_tests/juce_UnitTest.h"
 #include "xml/juce_XmlDocument.h"
 #include "xml/juce_XmlElement.h"
