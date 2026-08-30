@@ -881,7 +881,21 @@ struct MenuWindow final : public Component, private AsyncUpdater
 
     bool doesAnyJuceCompHaveFocus()
     {
-        if (! detail::WindowingHelpers::isForegroundOrEmbeddedProcess (componentAttachedTo))
+        // AP: on Linux, isForegroundProcess() means "a JUCE X11 window has focus". In a
+        // hosted plugin the focus belongs to the host process, so the test stays false and
+        // the menu is dismissed ~50ms after it opens (seen in Bitwig). Skip the test when
+        // not running as an app; the focus checks below still apply. Known cost: when the
+        // user switches to another app while a menu is open, the menu stays visible until
+        // a click dismisses it.
+        const bool isPluginOnLinux =
+           #if JUCE_LINUX
+            JUCEApplicationBase::getInstance() == nullptr;
+           #else
+            false;
+           #endif
+
+        if (! isPluginOnLinux
+            && ! detail::WindowingHelpers::isForegroundOrEmbeddedProcess (componentAttachedTo))
             return false;
 
         if (Component::getCurrentlyFocusedComponent() != nullptr)
