@@ -4117,6 +4117,10 @@ public:
 
     Steinberg::tresult PLUGIN_API setHostContext (Steinberg::FUnknown* context) override
     {
+        // WaveLab 10 on OS X (and maybe other WaveLabs): if the context object gets smart referenced here,
+        // a crash happens on shutdown in case multiple instances were active.
+        if (detail::PluginUtilities::getHostType().isWavelab()) return kNotImplemented;
+
         runLoop.loadFrom (context);
         host.loadFrom (context);
 
