@@ -32,6 +32,8 @@
   ==============================================================================
 */
 
+#pragma once
+
 namespace juce
 {
 
@@ -47,6 +49,7 @@ struct ModifierKeyReceiver
 {
     virtual ~ModifierKeyReceiver() {}
     virtual void setModifierKeyProvider (ModifierKeyProvider*) = 0;
+    virtual ModifierKeyProvider* getModifierKeyProvider() = 0;
     virtual void removeModifierKeyProvider() = 0;
 };
 

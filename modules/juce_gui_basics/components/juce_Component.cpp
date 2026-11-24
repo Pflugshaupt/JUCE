@@ -37,6 +37,10 @@
                && MessageManager::getInstanceWithoutCreating()->currentThreadHasLockedMessageManager()) \
               || getPeer() == nullptr);
 
+#if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
+#include "juce_audio_plugin_client/AAX/juce_AAX_Modifier_Injector.h"
+#endif
+
 namespace juce
 {
 
@@ -2549,6 +2553,31 @@ void Component::internalMouseExit (SafePointer<Component> target, MouseInputSour
     MouseListenerList::sendMouseEvent (checker, &MouseListener::mouseExit);
 }
 
+static bool _proToolsAutomationModsDown = false;
+
+static inline bool _proToolsAutomationMods(Component *c) {
+    ignoreUnused(c);
+    // some events need to be blocked based on modifiers, which are tricky on windows.
+#if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
+#if JUCE_WINDOWS
+    if (c == nullptr) return false;
+    auto* peer = c->getPeer();
+    if (auto modrec = dynamic_cast<juce::ModifierKeyReceiver*>(peer)) {
+        if (auto modprov = modrec->getModifierKeyProvider()) {
+            auto mods = modprov->getWin32Modifiers();
+            return ((mods & ModifierKeys::commandModifier) != 0) && ((mods & ModifierKeys::ctrlModifier) != 0);
+        }
+    }
+#else
+    // on macOS it works the normal way.
+    const auto curModifiers = ModifierKeys::getCurrentModifiers();
+    return (curModifiers.isCommandDown() && curModifiers.isCtrlDown());
+#endif
+#endif
+    return false;
+}
+
+
 void Component::internalMouseDown (SafePointer<Component> target,
                                    MouseInputSource source,
                                    const detail::PointerState& relativePointerState,
@@ -2606,9 +2635,13 @@ void Component::internalMouseDown (SafePointer<Component> target,
     if (target->flags.repaintOnMouseActivityFlag)
         target->repaint();
 
-    // The target may have been replaced by an ancestor if the original component was deleted
-    // while being brought to the front or given focus, so the event is retargeted to match.
-    target->mouseDown (checker.eventWithNearestParent());
+    // prevent protools automation shortcut mouse events from going through
+    _proToolsAutomationModsDown = _proToolsAutomationMods(target.getComponent());
+    if (!_proToolsAutomationModsDown) {
+        // The target may have been replaced by an ancestor if the original component was deleted
+        // while being brought to the front or given focus, so the event is retargeted to match.
+        target->mouseDown (checker.eventWithNearestParent());
+    }
 
     if (checker.shouldBailOut())
         return;
@@ -2650,7 +2683,10 @@ void Component::internalMouseUp (SafePointer<Component> target,
     if (target->flags.repaintOnMouseActivityFlag)
         target->repaint();
 
-    target->mouseUp (me);
+
+    if (!_proToolsAutomationModsDown)
+        target->mouseUp (me);
+    _proToolsAutomationModsDown = false;
 
     if (checker.shouldBailOut())
         return;
@@ -2693,8 +2729,9 @@ void Component::internalMouseDrag (SafePointer<Component> target, MouseInputSour
                                         source.isLongPressOrDrag());
 
         HierarchyChecker checker (&target, me);
-
-        target->mouseDrag (me);
+       
+        if (!_proToolsAutomationModsDown)
+            target->mouseDrag (me);
 
         if (checker.shouldBailOut())
             return;
