@@ -502,8 +502,8 @@ struct MenuWindow final : public Component, private AsyncUpdater
 
         calculateWindowPos (targetArea, alignToRectangle);
         setTopLeftPosition (windowPos.getPosition());
-
-        if (auto visibleID = options.getItemThatMustBeVisible())
+        auto visibleID = options.getItemThatMustBeVisible();
+        if (visibleID != 0 && options.getParentComponent() == nullptr)
         {
             const auto iter = std::find_if (items.begin(), items.end(), [&] (auto* item)
             {
@@ -953,7 +953,21 @@ struct MenuWindow final : public Component, private AsyncUpdater
 
     bool doesAnyJuceCompHaveFocus()
     {
-        if (! detail::WindowingHelpers::isForegroundOrEmbeddedProcess (componentAttachedTo))
+        // AP: on Linux, isForegroundProcess() means "a JUCE X11 window has focus". In a
+        // hosted plugin the focus belongs to the host process, so the test stays false and
+        // the menu is dismissed ~50ms after it opens (seen in Bitwig). Skip the test when
+        // not running as an app; the focus checks below still apply. Known cost: when the
+        // user switches to another app while a menu is open, the menu stays visible until
+        // a click dismisses it.
+        const bool isPluginOnLinux =
+           #if JUCE_LINUX
+            JUCEApplicationBase::getInstance() == nullptr;
+           #else
+            false;
+           #endif
+
+        if (! isPluginOnLinux
+            && ! detail::WindowingHelpers::isForegroundOrEmbeddedProcess (componentAttachedTo))
             return false;
 
         if (Component::getCurrentlyFocusedComponent() != nullptr)
@@ -1003,25 +1017,53 @@ struct MenuWindow final : public Component, private AsyncUpdater
         if (auto* pc = options.getParentComponent())
             target = pc->getLocalArea (nullptr, target).constrainedWithin (parentArea);
 
-        auto maxMenuHeight = parentArea.getHeight() - 24;
+        constexpr int borderSafety = 4;
+
+        auto maxMenuHeight = parentArea.getHeight() - 2 * borderSafety;
 
         int x, y, widthToUse, heightToUse;
-        layoutMenuItems (parentArea.getWidth() - 24, maxMenuHeight, widthToUse, heightToUse);
+        layoutMenuItems (parentArea.getWidth() - 2 * borderSafety, maxMenuHeight, widthToUse, heightToUse);
+
 
         if (alignToRectangle)
         {
             x = target.getX();
+            y = 0;
+            // figure out signle ticked item
+            int numTicked = 0;
+            juce::Component* tickedItem = nullptr;
+            for (int i = 0; i < items.size(); ++i) {
+                if (items[i]->item.isTicked) {
+                    tickedItem = items[i];
+                    numTicked++;
+                }
+            }
+            if (options.getParentComponent() != nullptr) {
+                if (numTicked == 1) {
+                    // center on the one ticked item
+                    x = target.getX() - tickedItem->getX();
+                    y = target.getY() - tickedItem->getY();
+                } else {
+                    if (options.getPreferredPopupDirection() == Options::PopupDirection::upwards) {
+                        y = target.getY() - heightToUse;
+                    } else {
+                        y = target.getBottom();
+                    }
+                }
+                // stay inside parent (and borderSafety)
+                y = jlimit(parentArea.getY() + borderSafety, parentArea.getBottom() - heightToUse - borderSafety, y);
+            } else {
+                // fall back to original crap code for child window versions
+                auto spaceUnder = parentArea.getBottom() - target.getBottom();
+                auto spaceOver = target.getY() - parentArea.getY();
 
-            auto spaceUnder = parentArea.getBottom() - target.getBottom();
-            auto spaceOver = target.getY() - parentArea.getY();
-            auto bufferHeight = 30;
-
-            if (options.getPreferredPopupDirection() == Options::PopupDirection::upwards)
-                y = (heightToUse < spaceOver - bufferHeight  || spaceOver >= spaceUnder) ? target.getY() - heightToUse
-                                                                                         : target.getBottom();
-            else
-                y = (heightToUse < spaceUnder - bufferHeight || spaceUnder >= spaceOver) ? target.getBottom()
-                                                                                         : target.getY() - heightToUse;
+                if (options.getPreferredPopupDirection() == Options::PopupDirection::upwards)
+                    y = (heightToUse < spaceOver - borderSafety  || spaceOver >= spaceUnder) ? target.getY() - heightToUse
+                                                                                             : target.getBottom();
+                else
+                    y = (heightToUse < spaceUnder - borderSafety || spaceUnder >= spaceOver) ? target.getBottom()
+                                                                                             : target.getY() - heightToUse;
+            }
         }
         else
         {
@@ -1034,19 +1076,19 @@ struct MenuWindow final : public Component, private AsyncUpdater
                     const bool parentGoingRight = (parent->getX() + parent->getWidth() / 2
                                                     > parent->parent->getX() + parent->parent->getWidth() / 2);
 
-                    if (parentGoingRight && target.getRight() + widthToUse < parentArea.getRight() - 4)
+                    if (parentGoingRight && target.getRight() + widthToUse < parentArea.getRight() - borderSafety)
                         tendTowardsRight = true;
-                    else if ((! parentGoingRight) && target.getX() > widthToUse + 4)
+                    else if ((!parentGoingRight) && target.getX() > widthToUse + borderSafety)
                         tendTowardsRight = false;
                 }
-                else if (target.getRight() + widthToUse < parentArea.getRight() - 32)
+                else if (target.getRight() + widthToUse < parentArea.getRight() - 2 * borderSafety)
                 {
                     tendTowardsRight = true;
                 }
             }
 
             auto biggestSpace = jmax (parentArea.getRight() - target.getRight(),
-                                      target.getX() - parentArea.getX()) - 32;
+                                      target.getX() - parentArea.getX()) - 2 * borderSafety;
 
             if (biggestSpace < widthToUse)
             {
