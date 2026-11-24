@@ -265,6 +265,42 @@ struct D2DHelpers
 
         return strokeStyle;
     }
+
+    static ComSmartPtr<ID2D1StrokeStyle1> dashPatternToStrokeStyle (ID2D1Factory1* factory, const float* dashes, int numDashes, float thickness)
+    {
+        D2D1_STROKE_STYLE_PROPERTIES1 strokeStyleProperties
+                {
+                        D2D1_CAP_STYLE_FLAT,
+                        D2D1_CAP_STYLE_FLAT,
+                        D2D1_CAP_STYLE_FLAT,
+                        D2D1_LINE_JOIN_MITER,
+                        thickness,
+                        D2D1_DASH_STYLE_CUSTOM,
+                        0.0f,
+                        D2D1_STROKE_TRANSFORM_TYPE_NORMAL
+                };
+
+        ComSmartPtr<ID2D1StrokeStyle1> strokeStyle;
+        const float fact = 1 / thickness;
+        if (numDashes <= 8) {
+            std::array<float, 8> dashes2;
+            for (int i = 0; i < numDashes; ++i) dashes2[i] = dashes[i] * fact;
+        
+            factory->CreateStrokeStyle (strokeStyleProperties,
+                                        dashes2.data(),
+                                        numDashes,
+                                        strokeStyle.resetAndGetPointerAddress());
+        } else {
+            std::vector<float> dashes2(numDashes);
+            for (int i = 0; i < numDashes; ++i) dashes2[i] = dashes[i] * fact;
+        
+            factory->CreateStrokeStyle (strokeStyleProperties,
+                                        dashes2.data(),
+                                        numDashes,
+                                        strokeStyle.resetAndGetPointerAddress());
+       }
+        return strokeStyle;
+    }
 };
 
 //==============================================================================
@@ -914,6 +950,32 @@ void Direct2DGraphicsContext::strokePath (const Path& p, const PathStrokeType& s
 
     ScopedTransform scopedTransform { *getPimpl(), currentState };
     deviceContext->DrawGeometry (geometry, brush, strokeType.getStrokeThickness(), strokeStyle);
+}
+
+void Direct2DGraphicsContext::strokeDashedPath (const Path& p, const float* dashLengths, int numDashLengths, float thickness, const AffineTransform& transform) 
+{
+    if (p.isEmpty() || thickness == 0.f)
+        return;
+
+    applyPendingClipList();
+
+    const auto deviceContext = getPimpl()->getDeviceContext();
+    const auto brush = currentState->getBrush (SavedState::applyFillTypeTransform);
+    const auto factory = getPimpl()->getDirect2DFactory();
+    const auto strokeStyle = D2DHelpers::dashPatternToStrokeStyle (factory, dashLengths, numDashLengths, thickness);
+    const auto geometry = D2DHelpers::pathToPathGeometry (factory,
+                                                          p,
+                                                          transform,
+                                                          D2D1_FIGURE_BEGIN_HOLLOW,
+                                                          metrics.get());
+
+    if (deviceContext == nullptr || brush == nullptr || geometry == nullptr || strokeStyle == nullptr)
+        return;
+
+    JUCE_D2DMETRICS_SCOPED_ELAPSED_TIME (metrics, drawGeometryTime)
+
+    ScopedTransform scopedTransform { *getPimpl(), currentState };
+    deviceContext->DrawGeometry (geometry, brush, thickness, strokeStyle);
 }
 
 void Direct2DGraphicsContext::drawImage (const Image& imageIn, const AffineTransform& transform)

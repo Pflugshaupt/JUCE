@@ -190,3 +190,6 @@ JUCE_END_IGNORE_WARNINGS_MSVC
 /** @cond */
 #define JUCE_NAMESPACE juce  // This old macro is deprecated: you should just use the juce namespace directly.
 /** @endcond */
+
+/// Lets code use the apulSoft patches. Currently this is Graphics::strokeDashedPath().
+#define AP_JUCE_PATCHES (1)
