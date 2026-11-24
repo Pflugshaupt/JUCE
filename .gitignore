@@ -70,3 +70,6 @@ extras/Projucer/JUCECompileEngine.dylib
 CMakeUserPresets.json
 .editorconfig
 
+
+.clangd-juce
+.clangd
