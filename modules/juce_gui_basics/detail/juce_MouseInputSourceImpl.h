@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -356,19 +356,23 @@ public:
         }
     }
 
-    Component* getTargetForGesture (ComponentPeer& peer, Point<float> positionWithinPeer,
-                                    Time time, Point<float>& screenPos)
+    Component* getTargetForGesture (ComponentPeer& peer,
+                                    Point<float> positionWithinPeer,
+                                    Time time,
+                                    Point<float>& physicalScreenPos)
     {
         lastTime = time;
         ++mouseEventCounter;
 
-        screenPos = peer.localToGlobal (positionWithinPeer);
-        const auto pointerState = lastPointerState.withPosition (screenPos);
+        physicalScreenPos = peer.localToGlobal (positionWithinPeer);
+        const auto pointerState = lastPointerState.withPosition (physicalScreenPos);
         setPeer (peer, pointerState, time);
         setPointerState (pointerState, time, false);
         triggerFakeMove();
 
-        return getComponentUnderMouse();
+        const auto positionWithinComponent = positionWithinPeer / peer.getComponent().getDesktopScaleFactor();
+
+        return peer.getComponent().getComponentAt (positionWithinComponent);
     }
 
     void handleWheel (ComponentPeer& peer, Point<float> positionWithinPeer,
@@ -453,8 +457,16 @@ public:
 
     void handleAsyncUpdate() override
     {
-        setPointerState (lastPointerState,
+        setPointerState (getPointerStateForFakeMove(),
                          jmax (lastTime, Time::getCurrentTime()), true);
+    }
+
+    // The pointer can be moved without this source receiving an event, for example by a screen
+    // reader that makes the pointer follow its cursor
+    detail::PointerState getPointerStateForFakeMove() const
+    {
+        return isDragging() ? lastPointerState
+                            : lastPointerState.withPosition (getRawScreenPosition());
     }
 
     //==============================================================================

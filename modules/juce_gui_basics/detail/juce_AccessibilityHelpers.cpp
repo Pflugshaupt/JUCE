@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -45,6 +45,43 @@ String AccessibilityHelpers::getApplicationOrPluginName()
 
     return "JUCE Application";
    #endif
+}
+
+AccessibilityHandler* AccessibilityHelpers::getFocusedHandler (AccessibilityHandler& handler)
+{
+    if (auto* modal = Component::getCurrentlyModalComponent())
+    {
+        const auto& component = handler.getComponent();
+
+        if (! component.isParentOf (modal)
+             && component.isCurrentlyBlockedByAnotherModalComponent())
+        {
+            // A modal popup menu without a focused child, like a submenu opened by
+            // hovering over its parent item, doesn't take the focus away from the
+            // modal components below it. Any other modal component does.
+            const auto numModalComponents = ModalComponentManager::getInstance()->getNumModalComponents();
+
+            for (int i = 0; i < numModalComponents; ++i)
+            {
+                auto* modalComponent = Component::getCurrentlyModalComponent (i);
+                auto* modalHandler = modalComponent != nullptr ? modalComponent->getAccessibilityHandler() : nullptr;
+
+                if (modalHandler == nullptr)
+                    break;
+
+                if (auto* focusChild = modalHandler->getChildFocus())
+                    return focusChild;
+
+                if (modalHandler->getRole() != AccessibilityRole::popupMenu)
+                    return modalHandler;
+            }
+
+            if (auto* modalHandler = modal->getAccessibilityHandler())
+                return modalHandler;
+        }
+    }
+
+    return handler.getChildFocus();
 }
 
 #if ! JUCE_NATIVE_ACCESSIBILITY_INCLUDED

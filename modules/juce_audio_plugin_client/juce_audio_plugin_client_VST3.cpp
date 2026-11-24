@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -1917,6 +1917,10 @@ private:
 
             const auto idToUse = parameter != nullptr ? processor.getVSTParamIDForIndex (parameter->getParameterIndex()) : 0;
             VSTComSmartPtr menu { handler->createContextMenu (view, &idToUse), IncrementRef::no };
+
+            if (menu == nullptr)
+                return {};
+
             return std::make_unique<EditorContextMenu> (editor, menu);
         }
 
@@ -1993,13 +1997,24 @@ private:
 
             systemWindow = parent;
 
+           #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+            // Hosts may report the content scale either before or after attaching the view, so
+            // we need to record the DPI both here and in setContentScaleFactor()
+            if (owner->scaleManager.getHostScale().has_value())
+                dpiWhenHostScaleReported = getDpiOfDisplayUnderWindow (systemWindow);
+           #endif
+
             createContentWrapperComponentIfNeeded();
 
-            const auto desktopFlags = detail::PluginUtilities::getDesktopFlags (component->pluginEditor.get());
+            const auto [desktopFlags, windowsMultiTouch] = detail::PluginUtilities::getDesktopFlagsAndWindowsMultiTouchMode (component->pluginEditor.get());
 
            #if JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
             component->setOpaque (true);
             component->addToDesktop (desktopFlags, systemWindow);
+
+            if (auto* peer = component->getPeer())
+                peer->setWindowsCanUseMultiTouch (windowsMultiTouch);
+
             component->setVisible (true);
            #else
             macHostWindow = detail::VSTWindowUtilities::attachComponentToWindowRefVST (component.get(), desktopFlags, parent);
@@ -2050,6 +2065,11 @@ private:
 
             if (component == nullptr)
                 return kResultTrue;
+
+           #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+            if (handleResizeForUnreportedDpiChange (createRectangle (*newSize)))
+                return kResultTrue;
+           #endif
 
             const auto rounded = owner->scaleManager.convertFromHostBounds (createRectangle (*newSize)).toNearestIntEdges();
             component->onSize (rounded.getWidth(), rounded.getHeight());
@@ -2204,7 +2224,11 @@ private:
                #endif
             });
 
-            owner->scaleManager.setHostScale (scaleToApply);
+            applyHostScale (scaleToApply);
+
+           #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+            refitHostWindowIfScaleWasInferred();
+           #endif
 
             return kResultTrue;
            #else
@@ -2429,9 +2453,109 @@ private:
             }
         }
 
+        void applyHostScale (float scale)
+        {
+           #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+            dpiWhenHostScaleReported = getDpiOfDisplayUnderWindow (systemWindow);
+           #endif
+
+            owner->scaleManager.setHostScale (scale);
+        }
+
+       #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+        /*  REAPER doesn't report a new content scale until the user has finished dragging its
+            window to a display with a different DPI. Before then:
+
+            1. The host scales its whole window by the ratio of the two DPIs and calls onSize()
+               with a size that only approximates the size of the editor at the new scale. We
+               infer the new scale from this resize, and adopting it requests the exact size.
+            2. The host calls onSize() with the approximate size again, which must be ignored.
+
+            When the host does report the new scale its window still has the size that it chose
+            in step 1, so the exact size is requested again.
+        */
+        bool handleResizeForUnreportedDpiChange (Rectangle<int> requestedHostSize)
+        {
+            if (! detail::PluginUtilities::getHostType().isReaper())
+                return false;
+
+            if (const auto scale = getScaleImpliedByResize (requestedHostSize))
+            {
+                sizeRequestedWithInferredScale = requestedHostSize;
+                applyHostScale (*scale);
+                return true;
+            }
+
+            return sizeRequestedWithInferredScale == requestedHostSize;
+        }
+
+        void refitHostWindowIfScaleWasInferred()
+        {
+            if (std::exchange (sizeRequestedWithInferredScale, std::nullopt).has_value() && component != nullptr)
+                component->resizeHostWindow();
+        }
+
+        std::optional<float> getScaleImpliedByResize (Rectangle<int> requestedHostSize) const
+        {
+            const auto hostScale = owner->scaleManager.getHostScale();
+            const auto dpi = getDpiOfDisplayUnderWindow (systemWindow);
+
+            if (! hostScale.has_value() || ! dpi.has_value() || ! dpiWhenHostScaleReported.has_value())
+                return {};
+
+            if (approximatelyEqual (*dpi, *dpiWhenHostScaleReported))
+                return {};
+
+            const auto dpiRatio = (float) (*dpi / *dpiWhenHostScaleReported);
+            const auto currentHostSize = owner->scaleManager.convertToHostBounds (component->getSizeToContainChild().toFloat());
+
+            if (! isCloserToScaledSize (requestedHostSize, currentHostSize, dpiRatio))
+                return {};
+
+            return *hostScale * dpiRatio;
+        }
+
+        static bool isCloserToScaledSize (Rectangle<int> requested, Rectangle<int> current, float scale)
+        {
+            const auto distanceFromRequested = [&] (Rectangle<float> r)
+            {
+                return std::abs ((float) requested.getWidth() - r.getWidth())
+                     + std::abs ((float) requested.getHeight() - r.getHeight());
+            };
+
+            return distanceFromRequested (current.toFloat() * scale) < distanceFromRequested (current.toFloat());
+        }
+
+        static std::optional<double> getDpiOfDisplayUnderWindow (void* window)
+        {
+            if (window == nullptr)
+                return {};
+
+            const auto hwnd = static_cast<HWND> (window);
+            const auto root = GetAncestor (hwnd, GA_ROOT);
+
+            RECT rootRect{};
+
+            if (! GetWindowRect (root != nullptr ? root : hwnd, &rootRect))
+                return {};
+
+            const auto rootBounds = Rectangle<int>::leftTopRightBottom (rootRect.left, rootRect.top, rootRect.right, rootRect.bottom);
+
+            if (auto* display = Desktop::getInstance().getDisplays().getDisplayForRect (rootBounds, true))
+                return display->dpi;
+
+            return {};
+        }
+       #endif
+
         //==============================================================================
         std::optional<ScopedRunLoop> viewRunLoop;
         std::optional<ViewRect> lastReportedSize;
+
+       #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+        std::optional<double> dpiWhenHostScaleReported;
+        std::optional<Rectangle<int>> sizeRequestedWithInferredScale;
+       #endif
 
         VSTComSmartPtr<JuceVST3EditController> owner;
         AudioProcessor& pluginInstance;
@@ -2492,7 +2616,6 @@ private:
  {
  public:
     JuceARAFactory() = default;
-    virtual ~JuceARAFactory() = default;
 
     JUCE_DECLARE_VST3_COM_REF_METHODS
 

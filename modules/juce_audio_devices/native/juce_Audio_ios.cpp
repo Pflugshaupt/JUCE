@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -167,6 +167,10 @@ JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 {
     NSUInteger value;
 
+    // The replacement notifications are only available from iOS 27, so the deprecated
+    // interruption notification is still required for all earlier deployment targets.
+    JUCE_BEGIN_IGNORE_DEPRECATION_WARNINGS
+
     if (juce::getNotificationValueForKey (notification, AVAudioSessionInterruptionTypeKey, value))
     {
         switch ((AVAudioSessionInterruptionType) value)
@@ -182,6 +186,8 @@ JUCE_END_IGNORE_WARNINGS_GCC_LIKE
             // No default so the code doesn't compile if this enum is extended.
         }
     }
+
+    JUCE_END_IGNORE_DEPRECATION_WARNINGS
 }
 
 - (void) handleMediaServicesReset

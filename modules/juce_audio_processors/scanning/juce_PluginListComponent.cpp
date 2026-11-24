@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -261,8 +261,8 @@ private:
                                                {
                                                    if (result != 0)
                                                        warnUserAboutUnsuitablePaths (weakSelf);
-                                                   else
-                                                       finishedScan();
+                                                   else if (const auto strong = weakSelf.lock())
+                                                       strong->finishedScan();
                                                }));
         }
         else
@@ -280,15 +280,15 @@ private:
 
             if (File::isAbsolutePath (f) && isUnsuitablePath (File (f)))
             {
-                auto options = MessageBoxOptions::makeOptionsOkCancel (MessageBoxIconType::WarningIcon,
-                                                                       TRANS ("Plugin Scanning"),
-                                                                       TRANS ("If you choose to scan folders that contain non-plugin files, "
-                                                                              "then scanning may take a long time, and can cause crashes when "
-                                                                              "attempting to load unsuitable files.")
-                                                                         + newLine
-                                                                         + TRANS ("Are you sure you want to scan the folder \"XYZ\"?")
-                                                                            .replace ("XYZ", f),
-                                                                       TRANS ("Scan"));
+                auto options = MessageBoxOptions{}.withIconType (MessageBoxIconType::WarningIcon)
+                                                  .withTitle (TRANS ("Plugin Scanning"))
+                                                  .withMessage (TRANS ("If you choose to scan folders that contain non-plugin files, "
+                                                                       "then scanning may take a long time, and can cause crashes when "
+                                                                       "attempting to load unsuitable files.")
+                                                                + newLine
+                                                                + TRANS ("Are you sure you want to scan the folder \"XYZ\"?").replace ("XYZ", f))
+                                                  .withButton (TRANS ("Scan"), 1)
+                                                  .withButton (TRANS ("Cancel"), 0);
                 messageBox = AlertWindow::showScopedAsync (options, [this, weakSelf] (int result)
                 {
                     if (result != 0)

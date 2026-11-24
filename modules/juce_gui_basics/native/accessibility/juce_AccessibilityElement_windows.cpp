@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -192,8 +192,11 @@ JUCE_COMRESULT AccessibilityNativeHandle::get_ProviderOptions (ProviderOptions* 
 
     *options = (ProviderOptions) (ProviderOptions_ServerSideProvider | ProviderOptions_UseComThreading);
 
-    if (AccessibilityHandler::getNativeChildForComponent (accessibilityHandler.getComponent()) != nullptr)
+    if (isElementValid()
+        && AccessibilityHandler::getNativeChildForComponent (accessibilityHandler.getComponent()) != nullptr)
+    {
         *options = (ProviderOptions) (*options | ProviderOptions_OverrideProvider);
+    }
 
     return S_OK;
 }
@@ -596,32 +599,7 @@ JUCE_COMRESULT AccessibilityNativeHandle::GetFocus (IRawElementProviderFragment*
 {
     return withCheckedComArgs (pRetVal, *this, [&]
     {
-        const auto getFocusHandler = [this]() -> AccessibilityHandler*
-        {
-            if (auto* modal = Component::getCurrentlyModalComponent())
-            {
-                const auto& component = accessibilityHandler.getComponent();
-
-                if (! component.isParentOf (modal)
-                     && component.isCurrentlyBlockedByAnotherModalComponent())
-                {
-                    if (auto* modalHandler = modal->getAccessibilityHandler())
-                    {
-                        if (auto* focusChild = modalHandler->getChildFocus())
-                            return focusChild;
-
-                        return modalHandler;
-                    }
-                }
-            }
-
-            if (auto* focusChild = accessibilityHandler.getChildFocus())
-                return focusChild;
-
-            return nullptr;
-        };
-
-        if (auto* focusHandler = getFocusHandler())
+        if (auto* focusHandler = detail::AccessibilityHelpers::getFocusedHandler (accessibilityHandler))
             focusHandler->getNativeImplementation()->QueryInterface (IID_PPV_ARGS (pRetVal));
 
         return S_OK;

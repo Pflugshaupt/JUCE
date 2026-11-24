@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -346,6 +346,34 @@ public:
     int compareUpTo (const CharPointer other, const int maxChars) const noexcept
     {
         return CharacterFunctions::compareUpTo (*this, other, maxChars);
+    }
+
+    /** Compares this string with another one, up to a specified number of characters. */
+    int compareUpTo (const CharPointer_UTF8 other, int maxChars) const noexcept
+    {
+        // Byte order matches code point order for valid UTF-8, so the bytes can be compared
+        // directly. A character is counted only where both strings start one, so a truncated
+        // sequence in malformed data is compared rather than counted, and neither string is
+        // read beyond its null terminator or the first difference.
+        auto* a = reinterpret_cast<const uint8*> (data);
+        auto* b = reinterpret_cast<const uint8*> (other.data);
+
+        for (;; ++a, ++b)
+        {
+            if ((*a & 0xc0) != 0x80 && (*b & 0xc0) != 0x80)
+            {
+                if (maxChars <= 0)
+                    return 0;
+
+                --maxChars;
+            }
+
+            if (*a != *b)
+                return *a < *b ? -1 : 1;
+
+            if (*a == 0)
+                return 0;
+        }
     }
 
     /** Compares this string with another one. */

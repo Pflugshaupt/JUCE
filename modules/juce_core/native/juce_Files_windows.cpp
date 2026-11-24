@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -113,9 +113,6 @@ namespace WindowsFileHelpers
 
     static String getDriveFromPath (String path)
     {
-        if (path.isNotEmpty() && path[1] == ':' && path[2] == 0)
-            path << '\\';
-
         const size_t numBytes = CharPointer_UTF16::getBytesRequiredFor (path.getCharPointer()) + 4;
         HeapBlock<WCHAR> pathCopy;
         pathCopy.calloc (numBytes, 1);
@@ -124,7 +121,9 @@ namespace WindowsFileHelpers
         if (PathStripToRoot (pathCopy))
             path = static_cast<const WCHAR*> (pathCopy);
 
-        return path;
+        // The volume functions only accept a root that ends with a separator, which PathStripToRoot
+        // leaves off a UNC share
+        return File::addTrailingSeparator (path);
     }
 
     static int64 getDiskSpaceInfo (const String& path, const bool total)

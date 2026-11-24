@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -39,6 +39,7 @@
 
 #include <juce_audio_plugin_client/detail/juce_IncludeSystemHeaders.h>
 #include <juce_audio_plugin_client/detail/juce_PluginUtilities.h>
+#include <juce_audio_plugin_client/detail/juce_PluginScaleFactorUtilities.h>
 #include <juce_gui_basics/native/juce_WindowsHooks_windows.h>
 
 #include <juce_audio_processors_headless/format_types/juce_LegacyAudioParameter.h>
@@ -541,7 +542,11 @@ namespace AAXClasses
                #endif
                 {
                     component->setVisible (true);
-                    component->addToDesktop (detail::PluginUtilities::getDesktopFlags (component->pluginEditor.get()), nativeViewToAttachTo);
+                    const auto [flags, usesMultiTouch] = detail::PluginUtilities::getDesktopFlagsAndWindowsMultiTouchMode (component->pluginEditor.get());
+                    component->addToDesktop (flags, nativeViewToAttachTo);
+
+                    if (auto* peer = component->getPeer())
+                        peer->setWindowsCanUseMultiTouch (usesMultiTouch);
 
                     if (ModifierKeyReceiver* modReceiver = dynamic_cast<ModifierKeyReceiver*> (component->getPeer()))
                         modReceiver->setModifierKeyProvider (this);
@@ -566,15 +571,12 @@ namespace AAXClasses
 
         AAX_Result GetViewSize (AAX_Point* viewSize) const override
         {
-            if (component != nullptr)
-            {
-                *viewSize = component->convertToHostBounds ({ (float) component->getHeight(),
-                                                              (float) component->getWidth() });
+            if (component == nullptr)
+                return AAX_ERROR_NULL_OBJECT;
 
-                return AAX_SUCCESS;
-            }
-
-            return AAX_ERROR_NULL_OBJECT;
+            const auto host = component->getHostBounds();
+            *viewSize = { (float) host.getHeight(), (float) host.getWidth() };
+            return AAX_SUCCESS;
         }
 
         AAX_Result ParameterUpdated (AAX_CParamID) override
@@ -604,6 +606,14 @@ namespace AAXClasses
             return AAX_ERROR_NULL_OBJECT;
         }
 
+       #if AAX_SDK_2p10p0_REVISION
+        AAX_Result UpdateScalingFactor (IACFUnknown*, float inScalingFactor) override
+        {
+            scaleManager.setHostScale (inScalingFactor);
+            return AAX_SUCCESS;
+        }
+       #endif
+
         int getWin32Modifiers() const override
         {
             int modifierFlags = 0;
@@ -630,7 +640,8 @@ namespace AAXClasses
         AAX_CParamID getAAXParamIDFromJuceIndex (int index) const noexcept;
 
         //==============================================================================
-        struct ContentWrapperComponent final : public Component
+        struct ContentWrapperComponent final : public Component,
+                                               private detail::PluginScaleFactorManagerListener
         {
             ContentWrapperComponent (JuceAAX_GUI& gui, AudioProcessor& plugin)
                 : owner (gui)
@@ -647,10 +658,16 @@ namespace AAXClasses
                     setBounds (lastValidSize);
                     pluginEditor->addMouseListener (this, true);
                 }
+
+                owner.scaleManager.addListener (*this);
+                owner.scaleManager.startObserving (*this);
             }
 
             ~ContentWrapperComponent() override
             {
+                owner.scaleManager.stopObserving (*this);
+                owner.scaleManager.removeListener (*this);
+
                 if (pluginEditor != nullptr)
                 {
                     PopupMenu::dismissAllActiveMenus();
@@ -681,6 +698,16 @@ namespace AAXClasses
                 }
             }
 
+            juce::Rectangle<int> getHostBounds() const
+            {
+                if (pluginEditor == nullptr)
+                    return {};
+
+                const auto localArea = getLocalArea (pluginEditor.get(), pluginEditor->getLocalBounds().toFloat());
+                const auto newSize = owner.scaleManager.convertToHostBounds (localArea);
+                return newSize;
+            }
+
             void mouseDown (const MouseEvent& e) override  { callMouseMethod (e, &AAX_IViewContainer::HandleParameterMouseDown); }
             void mouseUp   (const MouseEvent& e) override  { callMouseMethod (e, &AAX_IViewContainer::HandleParameterMouseUp); }
             void mouseDrag (const MouseEvent& e) override  { callMouseMethod (e, &AAX_IViewContainer::HandleParameterMouseDrag); }
@@ -707,34 +734,20 @@ namespace AAXClasses
                 }
             }
 
-            AAX_Point convertToHostBounds (AAX_Point p)
-            {
-                const auto scale = std::invoke ([&]
-                {
-                    if (auto* peer = getPeer())
-                        return (float) (peer->getPlatformScaleFactor() * peer->getComponent().getDesktopScaleFactor());
-
-                    return 1.0f;
-                });
-
-                if (approximatelyEqual (scale, 1.0f))
-                    return p;
-
-                return { scale * p.vert,
-                         scale * p.horz };
-            }
-
             bool resizeHostWindow()
             {
-                if (pluginEditor != nullptr)
+                if (const auto newSize = getHostBounds(); ! newSize.isEmpty())
                 {
-                    auto newSize = convertToHostBounds ({ (float) pluginEditor->getHeight(),
-                                                          (float) pluginEditor->getWidth() });
-
-                    return owner.GetViewContainer()->SetViewSize (newSize) == AAX_SUCCESS;
+                    AAX_Point newSizeAsPoint { (float) newSize.getHeight(), (float) newSize.getWidth() };
+                    return owner.GetViewContainer()->SetViewSize (newSizeAsPoint) == AAX_SUCCESS;
                 }
 
                 return false;
+            }
+
+            void peerBoundsDidUpdate() override
+            {
+                resizeHostWindow();
             }
 
             std::unique_ptr<AudioProcessorEditor> pluginEditor;
@@ -748,8 +761,9 @@ namespace AAXClasses
             JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ContentWrapperComponent)
         };
 
-        std::unique_ptr<ContentWrapperComponent> component;
         ScopedJuceInitialiser_GUI libraryInitialiser;
+        detail::PluginScaleFactorManager scaleManager;
+        std::unique_ptr<ContentWrapperComponent> component;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (JuceAAX_GUI)
     };

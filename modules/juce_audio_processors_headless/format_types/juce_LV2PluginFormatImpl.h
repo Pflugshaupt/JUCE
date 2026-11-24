@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -39,6 +39,7 @@
 #include <juce_audio_processors_headless/format_types/juce_LV2Common.h>
 #include <juce_audio_processors_headless/format_types/juce_LV2Resources.h>
 #include <juce_audio_processors_headless/utilities/juce_FlagCache.h>
+#include <juce_core/detail/juce_FunctionPointerDestructor.h>
 
 #include <thread>
 
@@ -124,7 +125,7 @@ public:
     WindowSizeChangeDetector()
         : hook (SetWindowsHookEx (WH_CALLWNDPROC,
                                   callWndProc,
-                                  (HINSTANCE) juce::Process::getCurrentModuleInstanceHandle(),
+                                  nullptr,
                                   GetCurrentThreadId()))
     {}
 
@@ -202,12 +203,7 @@ private:
 };
 #endif
 
-struct FreeLilvNode
-{
-    void operator() (LilvNode* ptr) const noexcept { lilv_node_free (ptr); }
-};
-
-using OwningNode = std::unique_ptr<LilvNode, FreeLilvNode>;
+using OwningNode = std::unique_ptr<LilvNode, FunctionPointerDestructor<lilv_node_free>>;
 
 template <typename Traits>
 class TypesafeLilvNode
@@ -301,10 +297,10 @@ struct UsefulUris
    #undef X
 };
 
-template <typename Ptr, typename Free>
+template <typename Ptr, auto free>
 struct OwningPtrTraits
 {
-    using type = std::unique_ptr<Ptr, Free>;
+    using type = std::unique_ptr<Ptr, FunctionPointerDestructor<free>>;
     static const Ptr* get (const type& t) noexcept { return t.get(); }
 };
 
@@ -402,30 +398,24 @@ private:
     type nodes{};
 };
 
-struct NodesFree
-{
-    void operator() (LilvNodes* ptr) const noexcept { lilv_nodes_free (ptr); }
-};
-
-using OwningNodes    = NodesImpl<OwningPtrTraits<LilvNodes, NodesFree>>;
+using OwningNodes    = NodesImpl<OwningPtrTraits<LilvNodes, lilv_nodes_free>>;
 using NonOwningNodes = NodesImpl<NonOwningPtrTraits<LilvNodes>>;
 
 class ScalePoints
 {
 public:
-    explicit ScalePoints (const LilvScalePoints* pt)
+    explicit ScalePoints (LilvScalePoints* pt)
         : points (pt) {}
 
     ScalePointsIterator begin() const noexcept
     {
-        return points == nullptr ? ScalePointsIterator{}
-                                 : ScalePointsIterator { points };
+        return ScalePointsIterator { points.get() };
     }
 
     ScalePointsIterator end() const noexcept { return {}; }
 
 private:
-    const LilvScalePoints* points = nullptr;
+    std::unique_ptr<LilvScalePoints, FunctionPointerDestructor<lilv_scale_points_free>> points;
 };
 
 class ScalePoint
@@ -829,13 +819,8 @@ struct OptionalExtension
 
 class Instance
 {
-    struct Free
-    {
-        void operator() (LilvInstance* ptr) const noexcept { lilv_instance_free (ptr); }
-    };
-
 public:
-    using Ptr = std::unique_ptr<LilvInstance, Free>;
+    using Ptr = std::unique_ptr<LilvInstance, FunctionPointerDestructor<lilv_instance_free>>;
     using GetExtensionData = const void* (*) (const char*);
 
     Instance (const Plugin& pluginIn, double sampleRate, const LV2_Feature* const* features)
@@ -1778,11 +1763,9 @@ private:
     SupportsTime time = SupportsTime::no;
 };
 
-struct FreeString { void operator() (void* ptr) const noexcept { lilv_free (ptr); } };
-
 static File bundlePathFromUri (const char* uri)
 {
-    return File { std::unique_ptr<char, FreeString> { lilv_file_uri_parse (uri, nullptr) }.get() };
+    return File { std::unique_ptr<char, FunctionPointerDestructor<lilv_free>> { lilv_file_uri_parse (uri, nullptr) }.get() };
 }
 
 class Plugins
@@ -1836,12 +1819,7 @@ private:
     type classes{};
 };
 
-struct PluginClassesFree
-{
-    void operator() (LilvPluginClasses* ptr) const noexcept { lilv_plugin_classes_free (ptr); }
-};
-
-using OwningPluginClasses    = PluginClassesImpl<OwningPtrTraits<LilvPluginClasses, PluginClassesFree>>;
+using OwningPluginClasses    = PluginClassesImpl<OwningPtrTraits<LilvPluginClasses, lilv_plugin_classes_free>>;
 using NonOwningPluginClasses = PluginClassesImpl<NonOwningPtrTraits<LilvPluginClasses>>;
 
 class World
@@ -1889,12 +1867,7 @@ public:
     LilvWorld* get() const { return world.get(); }
 
 private:
-    struct Free
-    {
-        void operator() (LilvWorld* ptr) const noexcept { lilv_world_free (ptr); }
-    };
-
-    std::unique_ptr<LilvWorld, Free> world;
+    std::unique_ptr<LilvWorld, FunctionPointerDestructor<lilv_world_free>> world;
 };
 
 class Ports
@@ -2161,12 +2134,12 @@ public:
 
     std::string toString (LilvWorld* world, LV2_URID_Map* map, LV2_URID_Unmap* unmap, const char* uri) const
     {
-        std::unique_ptr<char, FreeString> result { lilv_state_to_string (world,
-                                                                         map,
-                                                                         unmap,
-                                                                         state.get(),
-                                                                         uri,
-                                                                         nullptr) };
+        std::unique_ptr<char, FunctionPointerDestructor<lilv_free>> result { lilv_state_to_string (world,
+                                                                                                   map,
+                                                                                                   unmap,
+                                                                                                   state.get(),
+                                                                                                   uri,
+                                                                                                   nullptr) };
         return std::string { result.get() };
     }
 
@@ -2246,12 +2219,7 @@ public:
     };
 
 private:
-    struct Free
-    {
-        void operator() (LilvState* ptr) const noexcept { lilv_state_free (ptr); }
-    };
-
-    std::unique_ptr<LilvState, Free> state;
+    std::unique_ptr<LilvState, FunctionPointerDestructor<lilv_state_free>> state;
 
     JUCE_LEAK_DETECTOR (PluginState)
 };
@@ -2685,12 +2653,7 @@ public:
     }
 
 private:
-    struct Free
-    {
-        void operator() (LilvUIs* ptr) const noexcept { lilv_uis_free (ptr); }
-    };
-
-    std::unique_ptr<LilvUIs, Free> uis;
+    std::unique_ptr<LilvUIs, FunctionPointerDestructor<lilv_uis_free>> uis;
 };
 
 //==============================================================================
@@ -4203,7 +4166,7 @@ class LV2PluginFormatHeadless::Pimpl
 public:
     Pimpl()
     {
-        loadAllPluginsFromPaths (getDefaultLocationsToSearch());
+        loadAllPluginsFromPaths (getDefaultLocationsToSearch(), Recursive::yes);
 
         const auto tempFile = lv2ResourceFolder.getFile();
 
@@ -4233,29 +4196,28 @@ public:
     void findAllTypesForFile (OwnedArray<PluginDescription>& result,
                               const String& identifier)
     {
+        std::vector<const LilvPlugin*> plugins;
+
+        if (auto* plugin = findPluginByUri (identifier))
+            plugins.push_back (plugin);
+
         if (File::isAbsolutePath (identifier))
-            world->loadBundle (world->newFileUri (nullptr, File::addTrailingSeparator (identifier).toRawUTF8()));
-
-        std::vector<const LilvPlugin*> plugins { findPluginByUri (identifier) };
-        findPluginsByFile (identifier, plugins);
-
-        for (const auto& plugin : plugins)
         {
-            if (auto desc = getDescription (plugin); desc.fileOrIdentifier.isNotEmpty())
-            {
-                result.add (std::make_unique<PluginDescription> (desc));
-            }
+            // Constructing a File expands a leading '~', which lilv would otherwise treat as a relative path
+            const File bundle { identifier };
+            world->loadBundle (world->newFileUri (nullptr, File::addTrailingSeparator (bundle.getFullPathName()).toRawUTF8()));
+            findPluginsByFile (bundle, plugins);
         }
+
+        for (const auto* plugin : plugins)
+            if (auto desc = getDescription (plugin); desc.fileOrIdentifier.isNotEmpty())
+                result.add (std::make_unique<PluginDescription> (desc));
     }
 
     bool fileMightContainThisPluginType (const String& file) const
     {
         // If the string looks like a URI, then it could be a valid LV2 identifier
-        const auto* data = file.toRawUTF8();
-        const auto numBytes = file.getNumBytesAsUTF8();
-        std::vector<uint8_t> vec (numBytes + 1, 0);
-        std::copy (data, data + numBytes, vec.begin());
-        return serd_uri_string_has_scheme (vec.data()) || file.endsWith (".lv2");
+        return hasUriScheme (file) || file.endsWith (".lv2");
     }
 
     String getNameOfPluginFromIdentifier (const String& identifier)
@@ -4275,9 +4237,15 @@ public:
         return findPluginByUri (description.fileOrIdentifier) != nullptr;
     }
 
-    StringArray searchPathsForPlugins (const FileSearchPath& paths, bool, bool)
+    enum class Recursive
     {
-        loadAllPluginsFromPaths (paths);
+        no,
+        yes,
+    };
+
+    StringArray searchPathsForPlugins (const FileSearchPath& paths, Recursive recursive)
+    {
+        loadAllPluginsFromPaths (paths, recursive);
 
         StringArray result;
 
@@ -4516,17 +4484,62 @@ public:
     }
 
 private:
-    void loadAllPluginsFromPaths (const FileSearchPath& path)
+    void recursiveFileSearch (std::set<String>& results, const File& dir)
     {
-        const auto joined = path.toStringWithSeparator (LILV_PATH_SEP);
+        for (const auto& iter : RangedDirectoryIterator (dir, false, "*", File::findFilesAndDirectories))
+        {
+            auto f = iter.getFile();
+
+            if (fileMightContainThisPluginType (f.getFullPathName()))
+                results.insert (f.getParentDirectory().getFullPathName());
+            else if (f.isDirectory())
+                recursiveFileSearch (results, f);
+        }
+    }
+
+    void loadAllPluginsFromPaths (const FileSearchPath& path, Recursive recursive)
+    {
+        const auto joined = std::invoke ([&]
+        {
+            if (recursive == Recursive::no)
+                return path.toStringWithSeparator (LILV_PATH_SEP);
+
+            std::set<String> searchResults;
+
+            for (int j = 0; j < path.getNumPaths(); ++j)
+                recursiveFileSearch (searchResults, path[j]);
+
+            String result;
+
+            for (auto it = searchResults.begin(); it != searchResults.end(); ++it)
+            {
+                if (it != searchResults.begin())
+                    result << LILV_PATH_SEP;
+
+                result << *it;
+            }
+
+            return result;
+        });
+
         world->loadAllFromPaths (world->newString (joined.toRawUTF8()));
     }
 
-    struct Free { void operator() (char* ptr) const noexcept { free (ptr); } };
-    using StringPtr = std::unique_ptr<char, Free>;
+    using StringPtr = std::unique_ptr<char, FunctionPointerDestructor<free>>;
+
+    static bool hasUriScheme (const String& s)
+    {
+        // A Windows drive letter followed by a colon also satisfies serd's definition of a scheme
+        return ! File::isAbsolutePath (s)
+            && serd_uri_string_has_scheme (reinterpret_cast<const uint8_t*> (s.toRawUTF8()));
+    }
 
     const LilvPlugin* findPluginByUri (const String& s)
     {
+        // Passing a bundle path to lilv_new_uri makes sord print "attempt to map invalid URI" on stderr.
+        if (! hasUriScheme (s))
+            return nullptr;
+
         return world->getAllPlugins().getByUri (world->newUri (s.toRawUTF8()));
     }
 
@@ -4583,6 +4596,24 @@ private:
         result.pluginFormatName     = LV2PluginFormatHeadless::getFormatName();
         result.numInputChannels     = static_cast<int> (numInputs);
         result.numOutputChannels    = static_cast<int> (numOutputs);
+
+        JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4702)
+        const auto getValue = [&] (const char* propertyName)
+        {
+            for (const auto* item : wrapped.getValue (world->newUri (propertyName).get()))
+                return lv2_host::lilvNodeToString (item);
+
+            return String{};
+        };
+        JUCE_END_IGNORE_WARNINGS_MSVC
+
+        result.version = std::invoke ([&]
+        {
+            StringArray versionComponents { getValue (LV2_CORE__minorVersion),
+                                            getValue (LV2_CORE__microVersion) };
+            versionComponents.removeEmptyStrings();
+            return versionComponents.joinIntoString (".");
+        });
 
         const auto classPtr     = wrapped.getClass();
         const auto classes      = collectPluginClassUris (classPtr);

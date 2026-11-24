@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -248,6 +248,16 @@ public:
        #endif
     }
 
+    void childBoundsChanged (Component* child) override
+    {
+        std::optional<ScopedValueSetter<Rectangle<int>>> scope;
+
+        if (child == getContentComponent())
+            scope.emplace (constrainer.pendingBoundsFromChild, child->getLocalBounds());
+
+        DocumentWindow::childBoundsChanged (child);
+    }
+
 private:
     class DecoratorConstrainer final : public BorderedComponentBoundsConstrainer
     {
@@ -274,6 +284,42 @@ private:
 
             return nativeFrame.addedTo (window.getContentComponentBorder());
         }
+
+        void checkBounds (Rectangle<int>& bounds,
+                          const Rectangle<int>& previousBounds,
+                          const Rectangle<int>& limits,
+                          bool isStretchingTop,
+                          bool isStretchingLeft,
+                          bool isStretchingBottom,
+                          bool isStretchingRight) override
+        {
+            // If we're responding to a change that originated from the child component, then the
+            // only valid size is that of the child component.
+            if (! pendingBoundsFromChild.isEmpty())
+            {
+                bounds = getAdditionalBorder().addedTo (pendingBoundsFromChild).withPosition (previousBounds.getPosition());
+                return;
+            }
+
+            if (auto* editor = dynamic_cast<AudioProcessorEditor*> (window.getContentComponent()))
+            {
+                if (! editor->isResizable())
+                {
+                    bounds = previousBounds.withPosition (bounds.getPosition());
+                    return;
+                }
+            }
+
+            BorderedComponentBoundsConstrainer::checkBounds (bounds,
+                                                             previousBounds,
+                                                             limits,
+                                                             isStretchingTop,
+                                                             isStretchingLeft,
+                                                             isStretchingBottom,
+                                                             isStretchingRight);
+        }
+
+        Rectangle<int> pendingBoundsFromChild;
 
     private:
         DocumentWindow& window;

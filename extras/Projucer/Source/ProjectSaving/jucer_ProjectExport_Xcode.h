@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -214,6 +214,7 @@ public:
           embeddedFrameworksValue                      (settings, Ids::embeddedFrameworks,                      getUndoManager()),
           postbuildCommandValue                        (settings, Ids::postbuildCommand,                        getUndoManager()),
           prebuildCommandValue                         (settings, Ids::prebuildCommand,                         getUndoManager()),
+          postSignCommandValue                         (settings, Ids::postSignCommand,                         getUndoManager()),
           duplicateAppExResourcesFolderValue           (settings, Ids::duplicateAppExResourcesFolder,           getUndoManager(), true),
           iosDeviceFamilyValue                         (settings, Ids::iosDeviceFamily,                         getUndoManager(), "1,2"),
           iPhoneScreenOrientationValue                 (settings, Ids::iPhoneScreenOrientation,                 getUndoManager(), getDefaultScreenOrientations(), ","),
@@ -310,6 +311,7 @@ public:
 
     String getPostBuildScript() const                       { return postbuildCommandValue.get(); }
     String getPreBuildScript() const                        { return prebuildCommandValue.get(); }
+    String getPostSignScript() const                        { return postSignCommandValue.get(); }
 
     bool shouldDuplicateAppExResourcesFolder() const        { return duplicateAppExResourcesFolderValue.get(); }
 
@@ -884,6 +886,9 @@ public:
         props.add (new TextPropertyComponent (postbuildCommandValue, "Post-Build Shell Script", 32768, true),
                    "Some shell-script that will be run after a build completes.");
 
+        props.add (new TextPropertyComponent (postSignCommandValue, "Post-Sign Shell Script", 32768, true),
+                   "Some shell-script that will be run after a build completes and the product has been signed.");
+
         props.add (new TextPropertyComponent (exporterBundleIdentifierValue, "Exporter Bundle Identifier", 256, false),
                    "Use this to override the project bundle identifier for this exporter. "
                    "This is useful if you want to use different bundle identifiers for Mac and iOS exporters in the same project.");
@@ -1021,10 +1026,10 @@ protected:
             : BuildConfiguration (p, t, e),
               iOS (isIOS),
               macOSBaseSDK                 (config, Ids::macOSBaseSDK,                 getUndoManager()),
-              macOSDeploymentTarget        (config, Ids::macOSDeploymentTarget,        getUndoManager(), "10.13"),
+              macOSDeploymentTarget        (config, Ids::macOSDeploymentTarget,        getUndoManager(), "12.0"),
               macOSArchitecture            (config, Ids::osxArchitecture,              getUndoManager(), macOSArch_Default),
               iosBaseSDK                   (config, Ids::iosBaseSDK,                   getUndoManager()),
-              iosDeploymentTarget          (config, Ids::iosDeploymentTarget,          getUndoManager(), "12.0"),
+              iosDeploymentTarget          (config, Ids::iosDeploymentTarget,          getUndoManager(), "15.0"),
               customXcodeFlags             (config, Ids::customXcodeFlags,             getUndoManager()),
               plistPreprocessorDefinitions (config, Ids::plistPreprocessorDefinitions, getUndoManager()),
               codeSignIdentity             (config, Ids::codeSigningIdentity,          getUndoManager()),
@@ -1065,7 +1070,7 @@ protected:
                            "The version of the iOS SDK to link against." + sdkInfoString + "14.4.");
 
                 props.add (new TextPropertyComponent (iosDeploymentTarget, "iOS Deployment Target", 8, false),
-                           "The minimum version of iOS to target." + sdkInfoString + "12.0.");
+                           "The minimum version of iOS to target." + sdkInfoString + "15.0.");
             }
             else
             {
@@ -1073,7 +1078,7 @@ protected:
                            "The version of the macOS SDK to link against." + sdkInfoString + "11.1.");
 
                 props.add (new TextPropertyComponent (macOSDeploymentTarget, "macOS Deployment Target", 8, false),
-                           "The minimum version of macOS to target." + sdkInfoString + "10.11.");
+                           "The minimum version of macOS to target." + sdkInfoString + "12.0.");
 
                 props.add (new ChoicePropertyComponent (macOSArchitecture, "macOS Architecture",
                                                         { "Native architecture of build machine", "Standard 32-bit",        "Standard 32/64-bit",     "Standard 64-bit" },
@@ -2031,8 +2036,9 @@ public:
             else
             {
                 s.set ("GCC_GENERATE_DEBUGGING_SYMBOLS", "NO");
-                s.set ("DEAD_CODE_STRIPPING", "YES");
             }
+
+            s.set ("DEAD_CODE_STRIPPING", "YES");
 
             // This prevents Xcode injecting a strip command after copying a
             // plug-in or applying any PACE Fusion post-build steps.
@@ -2233,7 +2239,9 @@ public:
         }
 
         //==============================================================================
-        void addShellScriptBuildPhase (const String& phaseName, const String& script)
+        void addShellScriptBuildPhase (const String& phaseName,
+                                       const String& script,
+                                       const StringArray& inputPaths = {})
         {
             if (script.trim().isEmpty())
                 return;
@@ -2241,6 +2249,10 @@ public:
             auto v = addBuildPhase ("PBXShellScriptBuildPhase", {});
             v.setProperty (Ids::name, phaseName, nullptr);
             v.setProperty ("alwaysOutOfDate", 1, nullptr);
+
+            if (! inputPaths.isEmpty())
+                v.setProperty ("inputPaths", "(\"" + inputPaths.joinIntoString (R"(",")") + "\")", nullptr);
+
             v.setProperty ("shellPath", "/bin/sh", nullptr);
             v.setProperty ("shellScript", script.replace ("\\", "\\\\")
                                                 .replace ("\"", "\\\"")
@@ -2360,11 +2372,11 @@ private:
                                            "Since JUCE 4.2, this is instead done using \"AU/VST/VST2/AAX Binary Location\" in the Xcode (OS X) configuration settings.\n\n"
                                            "Click 'Update' to remove the script (otherwise your plug-in may not compile correctly).";
 
-            auto options = MessageBoxOptions::makeOptionsOkCancel (MessageBoxIconType::WarningIcon,
-                                                                   "Project settings: " + project.getDocumentTitle(),
-                                                                   alertWindowText,
-                                                                   "Update",
-                                                                   "Cancel");
+            auto options = MessageBoxOptions{}.withIconType (MessageBoxIconType::WarningIcon)
+                                              .withTitle ("Project settings: " + project.getDocumentTitle())
+                                              .withMessage (alertWindowText)
+                                              .withButton ("Update", 1)
+                                              .withButton ("Cancel", 0);
 
             messageBox = f (options, [this] (int result)
                             {
@@ -2384,11 +2396,11 @@ private:
                                      "For more information see Apple's IOKit User Client Class Temporary Exception documentation.\n\n"
                                      "Clicking 'Update' will remove the defunct setting from your project.";
 
-            auto options = MessageBoxOptions::makeOptionsOkCancel (MessageBoxIconType::WarningIcon,
-                                                                   "Project settings: " + project.getDocumentTitle(),
-                                                                   alertWindowText,
-                                                                   "Update",
-                                                                   "Cancel");
+            auto options = MessageBoxOptions{}.withIconType (MessageBoxIconType::WarningIcon)
+                                              .withTitle ("Project settings: " + project.getDocumentTitle())
+                                              .withMessage (alertWindowText)
+                                              .withButton ("Update", 1)
+                                              .withButton ("Cancel", 0);
 
             messageBox = f (std::move (options), [this] (int result)
                                                  {
@@ -2652,7 +2664,7 @@ private:
     {
         const auto runPreBuildScript = [&]
         {
-            target.addShellScriptBuildPhase ("Pre-build script", getPreBuildScript());
+            target.addShellScriptBuildPhase ("Run Pre-Build Script", getPreBuildScript());
         };
 
         const auto copyBundleResources = [&]
@@ -2714,7 +2726,12 @@ private:
 
         const auto runPostBuildScript = [&]
         {
-            target.addShellScriptBuildPhase ("Run Post-build Script", getPostBuildScript());
+            target.addShellScriptBuildPhase ("Run Post-Build Script", getPostBuildScript());
+        };
+
+        const auto runPostSignScript = [&]
+        {
+            target.addShellScriptBuildPhase ("Run Post-Sign Script", getPostSignScript());
         };
 
         const auto embedAUv3AppExtension = [&]
@@ -2763,7 +2780,10 @@ private:
             }
 
             if (! script.isEmpty())
-                target.addShellScriptBuildPhase ("Strip Target", script.toStringWithDefaultShellOptions());
+            {
+                target.addShellScriptBuildPhase ("Strip Target", script.toStringWithDefaultShellOptions(),
+                                                 { "$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Resources/DWARF/$(EXECUTABLE_NAME)" });
+            }
         };
 
         const auto signTarget = [&]
@@ -2873,6 +2893,8 @@ private:
             {
                 signTarget();
             }
+
+            runPostSignScript();
 
             if (target.xcodeCopyToProductInstallPathAfterBuild)
                 installTarget();
@@ -3279,6 +3301,7 @@ private:
         s.set ("CLANG_WARN_NON_LITERAL_NULL_CONVERSION", "YES");
         s.set ("CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF", "YES");
         s.set ("CLANG_WARN_OBJC_LITERAL_CONVERSION", "YES");
+        s.set ("CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER", "YES");
         s.set ("CLANG_WARN_RANGE_LOOP_ANALYSIS", "YES");
         s.set ("CLANG_WARN_STRICT_PROTOTYPES", "YES");
         s.set ("CLANG_WARN_SUSPICIOUS_MOVE", "YES");
@@ -3290,6 +3313,14 @@ private:
         // GCC_SYMBOLS_PRIVATE_EXTERN only takes effect if ENABLE_TESTABILITY is off
         s.set ("ENABLE_TESTABILITY", "NO");
         s.set ("GCC_SYMBOLS_PRIVATE_EXTERN", "YES");
+
+        // These settings are recommended by Xcode's project validation. User script
+        // sandboxing is deliberately disabled, as it breaks the shell script phases
+        // that copy plug-ins into their install locations.
+        s.set ("DEAD_CODE_STRIPPING", "YES");
+        s.set ("ENABLE_USER_SCRIPT_SANDBOXING", "NO");
+        s.set ("STRING_CATALOG_GENERATE_SYMBOLS", "YES");
+        s.set ("ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS", "YES");
 
         if (config.isDebug())
         {
@@ -3387,6 +3418,11 @@ private:
                 s.insert (0, "AudioUnit");
             }
 
+            // Frameworks that are linked normally somewhere in the project shouldn't also be
+            // linked weakly, otherwise we would emit two build files with clashing IDs
+            for (const auto& framework : s)
+                xcodeWeakFrameworks.removeString (framework, true);
+
             for (const auto& [frameworkList, kind] : { std::tuple (&s,                   FrameworkKind::normal),
                                                        std::tuple (&xcodeWeakFrameworks, FrameworkKind::weak) })
             {
@@ -3396,16 +3432,23 @@ private:
 
                 for (auto& framework : cleaned)
                 {
-                    auto frameworkID = addFramework (framework, kind);
-
-                    // find all the targets that are referring to this object
+                    // A PBXBuildFile is only allowed to be referenced from a single build phase,
+                    // so a separate one must be created for every target linking this framework.
+                    // Otherwise Xcode won't apply attributes like Weak to all targets.
                     for (auto& target : targets)
                     {
+                        // These targets don't get a frameworks build phase
+                        if (target->type == XcodeTarget::SharedCodeTarget
+                            || target->type == XcodeTarget::AggregateTarget)
+                        {
+                            continue;
+                        }
+
                         if (xcodeFrameworks.contains (framework)
                             || xcodeWeakFrameworks.contains (framework)
                             || target->xcodeFrameworks.contains (framework))
                         {
-                            target->frameworkIDs.add (frameworkID);
+                            target->frameworkIDs.add (addFramework (framework, kind, *target));
                         }
                     }
                 }
@@ -3599,7 +3642,7 @@ private:
         output << "// !$*UTF8*$!\n{\n"
                   "\tarchiveVersion = 1;\n"
                   "\tclasses = {\n\t};\n"
-                  "\tobjectVersion = 46;\n"
+                  "\tobjectVersion = 54;\n"
                   "\tobjects = {\n";
 
         StringArray objectTypes;
@@ -3751,6 +3794,7 @@ private:
         FileOptions& withPath (const String& p)                             { path = p;                  return *this; }
         FileOptions& withRelativePath (const build_tools::RelativePath& p)  { path = p.toUnixStyle();    return *this; }
         FileOptions& withFileRefID (const String& fid)                      { fileRefID = fid;           return *this; }
+        FileOptions& withBuildFileID (const String& bid)                    { buildFileID = bid;         return *this; }
         FileOptions& withCompilerFlags (const String& f)                    { compilerFlags = f;         return *this; }
         FileOptions& withCompilationEnabled (bool e)                        { compile = e;               return *this; }
         FileOptions& withAddToBinaryResourcesEnabled (bool e)               { addToBinaryResources = e;  return *this; }
@@ -3762,6 +3806,7 @@ private:
 
         String path;
         String fileRefID;
+        String buildFileID;
         String compilerFlags;
         bool compile = false;
         bool addToBinaryResources = false;
@@ -3820,7 +3865,7 @@ private:
 
     String addBuildFile (const FileOptions& opts) const
     {
-        auto fileID = createID (opts.path + "buildref");
+        auto fileID = createID (opts.buildFileID.isEmpty() ? opts.path + "buildref" : opts.buildFileID);
         auto filename = build_tools::RelativePath (opts.path, build_tools::RelativePath::unknown).getFileName();
 
         if (opts.compile)
@@ -3966,7 +4011,7 @@ private:
         weak,
     };
 
-    String addFramework (const String& frameworkName, FrameworkKind kind) const
+    String addFramework (const String& frameworkName, FrameworkKind kind, const XcodeTarget& target) const
     {
         auto path = frameworkName;
         auto isRelativePath = path.startsWith ("../");
@@ -3980,10 +4025,11 @@ private:
         auto fileRefID = createFileRefID (path);
 
         addFileReference (((build_tools::isAbsolutePath (frameworkName) || isRelativePath) ? "" : "${SDKROOT}/") + path);
-        frameworkFileIDs.add (fileRefID);
+        frameworkFileIDs.addIfNotAlreadyThere (fileRefID);
 
         return addBuildFile (FileOptions().withPath (path)
                                           .withFileRefID (fileRefID)
+                                          .withBuildFileID (path + target.getName() + "buildref")
                                           .withAttributeWeak (kind == FrameworkKind::weak));
     }
 
@@ -4103,7 +4149,7 @@ private:
         v.setProperty ("isa", "PBXProject", nullptr);
         v.setProperty ("attributes", indentBracedList (getProjectObjectAttributes()), nullptr);
         v.setProperty ("buildConfigurationList", createID ("__projList"), nullptr);
-        v.setProperty ("compatibilityVersion", "Xcode 3.2", nullptr);
+        v.setProperty ("compatibilityVersion", "Xcode 12.0", nullptr);
         v.setProperty ("hasScannedForEncodings", (int) 0, nullptr);
         v.setProperty ("knownRegions", indentParenthesisedList ({ "en", "Base" }), nullptr);
         v.setProperty ("mainGroup", createID ("__mainsourcegroup"), nullptr);
@@ -4203,7 +4249,7 @@ private:
     {
         std::map<String, String> attributes;
 
-        attributes["LastUpgradeCheck"] = "1340";
+        attributes["LastUpgradeCheck"] = "2710";
         attributes["BuildIndependentTargetsInParallel"] = "YES";
         attributes["ORGANIZATIONNAME"] = getProject().getCompanyNameString().quoted();
 
@@ -4395,7 +4441,7 @@ private:
                                  subprojectsValue,
                                  validArchsValue,
                                  extraFrameworksValue, frameworkSearchPathsValue, extraCustomFrameworksValue, embeddedFrameworksValue,
-                                 postbuildCommandValue, prebuildCommandValue,
+                                 postbuildCommandValue, prebuildCommandValue, postSignCommandValue,
                                  duplicateAppExResourcesFolderValue, iosDeviceFamilyValue, iPhoneScreenOrientationValue,
                                  iPadScreenOrientationValue, iconComposerIconValue, customXcodeResourceFoldersValue, customXcassetsFolderValue,
                                  appSandboxValue, appSandboxInheritanceValue, appSandboxOptionsValue,

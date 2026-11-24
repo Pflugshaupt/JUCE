@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -637,7 +637,12 @@ public:
         processor->setNonRealtime (ports.isFreeWheeling());
 
         for (auto i = 0, end = processor->getTotalNumInputChannels(); i < end; ++i)
-            audio.copyFrom (i, 0, ports.getBufferForAudioInput (i), audio.getNumSamples());
+        {
+            if (const auto* src = ports.getBufferForAudioInput (i))
+                audio.copyFrom (i, 0, src, audio.getNumSamples());
+            else
+                audio.clear (i, 0, audio.getNumSamples());
+        }
 
         jassert (countNaNs (audio) == 0);
 
@@ -647,10 +652,8 @@ public:
             if (processor->isSuspended())
             {
                 for (auto i = 0, end = processor->getTotalNumOutputChannels(); i < end; ++i)
-                {
-                    const auto ptr = ports.getBufferForAudioOutput (i);
-                    std::fill (ptr, ptr + numSteps, 0.0f);
-                }
+                    if (auto* ptr = ports.getBufferForAudioOutput (i))
+                        std::fill (ptr, ptr + numSteps, 0.0f);
             }
             else
             {
@@ -1624,7 +1627,12 @@ public:
         setOpaque (true);
         setVisible (false);
         removeFromDesktop();
-        addToDesktop (detail::PluginUtilities::getDesktopFlags (editor.get()), parent);
+
+        const auto [desktopFlags, windowsUsesMultiTouch] = detail::PluginUtilities::getDesktopFlagsAndWindowsMultiTouchMode (editor.get());
+        addToDesktop (desktopFlags, parent);
+
+        if (auto* peer = getPeer())
+            peer->setWindowsCanUseMultiTouch (windowsUsesMultiTouch);
 
         *widget = getWindowHandle();
 

@@ -3,6 +3,92 @@
 This file lists the more notable headline features. For more detailed info
 about changes and bugfixes please see the git log and BREAKING_CHANGES.md.
 
+## Version 9.0.6
+
+  - Updated the bundled AAX SDK to 2.10
+  - Added support for the AAX dynamic scale factor API
+  - Changed DropShadower to use a single window behind its owner
+  - Improved PopupMenu and TreeView accessibility
+  - Fixed File handling of UNC shares and drive-relative Windows paths
+  - Fixed multiple Android font loading and IME issues
+  - Fixed some macOS child window and popup menu ordering issues
+  - Fixed some Windows always-on-top window and plug-in scaling issues
+  - Fixed input-only WASAPI devices receiving no input
+  - Fixed a potential CoreMIDI use after free in plug-ins
+  - Added a custom include path option for the LADSPA host
+
+## Version 9.0.5
+
+  - Fixed some layout issues on the iPhone Duo
+  - Added support for native child windows
+  - Added button roles and explicit primary actions to NativeMessageBox
+  - Added protection against malformed ZIP, XML, JSON, ValueTree and OSC input
+  - Added protection against malformed PNG, GIF, WAV and AIFF files
+  - Updated HarfBuzz to 15.0.0
+  - Improved compatibility with Xcode 27 and iOS 26
+  - Fixed multiple Direct2D rendering issues
+  - Fixed multiple JavascriptEngine crashes
+  - Fixed some VST3 hosting scaling issues
+  - Fixed some WinMM MIDI device issues
+  - Fixed some X11 windowing issues
+  - Updated the Projucer's default Android Gradle and Java versions
+
+## Version 9.0.4
+
+  - Added a MIDI device disconnection listener API
+  - Fixed multiple Windows MIDI device disconnection issues
+  - Fixed several MessageManagerLock issues
+  - Fixed Windows window placement when the display scale changes
+  - Fixed multiple Linux windowing and system tray issues
+  - Fixed some LV2 hosting issues
+  - Fixed XmlElement whitespace handling
+  - Added a NEEDS_OPENGL_ES CMake option for Linux
+  - Added protection against malformed String input
+
+## Version 9.0.3
+
+  - Added support for reading and writing Opus files
+  - Added support for WebP image files
+  - Updated Windows MIDI Services support to the in-box preview 7 API
+  - Fixed multiple Linux ALSA sample rate and channel issues
+  - Fixed Windows window placement and focus issues
+  - Fixed cancelling blocking network requests on macOS
+  - Fixed some OpenGLFrameBuffer issues
+  - Allowed recursive scanning for LV2 plug-ins
+
+## Version 9.0.2
+
+  - Enabled MP3AudioFormat by default
+  - Fixed reading MP3 VBR files with padding after the ID3v2 header
+  - Fixed parsing WAV files with a missing final pad byte
+  - Improved OpenGL rendering performance
+  - Fixed CoreAudio default sample rate and buffer size selection
+  - Fixed CoreAudio Multi-Output device handling
+  - Fixed some VST3 hosting issues
+  - Fixed a UMP sysex7 timestamp issue
+  - Fixed Projucer weak-linking of frameworks in multi-target Xcode projects
+  - Added a SECURITY.md and a software bill of materials
+
+## Version 9.0.1
+
+  - Added a new TypeScript npm package for WebView integrarion
+  - Added protection against malformed AudioFormat input
+  - Fixed iOS builds with Xcode 12.4
+  - Fixed Freetype compilation on older Linux distros
+  - Fixed missing macOS icons for associated documents
+  - Fixed unresponsive Linux GUIs
+  - Fixed a macOS CoreAudio compilation issue
+
+## Version 9.0.0
+
+  - Added a new SVG parser
+  - Added support for variable fonts
+  - Added a new macOS CoreAudio implementation
+  - Improved the performance of the software renderer
+  - Added OpenGL ES support to Linux
+  - Improved multi-touch support on Linux and Windows
+  - Improved the CMake build system for headless environments
+
 ## Version 8.0.15
 
   - Fixed the behaviour of loadFromHexString

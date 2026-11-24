@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -52,6 +52,14 @@ struct AccessibilityHelpers
     static void notifyAccessibilityEvent (const AccessibilityHandler&, Event);
 
     static String getApplicationOrPluginName();
+
+    /*  Returns the handler that should be reported as having the accessibility focus when the
+        platform asks the given handler for its focused element, or nullptr if there is none.
+
+        If the handler's component is blocked by a modal component, the focus is looked for in
+        the modal components instead.
+    */
+    static AccessibilityHandler* getFocusedHandler (AccessibilityHandler&);
 
     template <typename MemberFn>
     static const AccessibilityHandler* getEnclosingHandlerWithInterface (const AccessibilityHandler* handler, MemberFn fn)

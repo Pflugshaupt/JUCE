@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -73,6 +73,9 @@ public:
         Note that the other version of this method is much easier if you're using
         an image instead of a custom drawable.
 
+        The page's button will fit the bounds returned by Drawable::getDrawableBounds() into
+        its image area.
+
         @param pageTitle    the name of this preferences page - you'll need to
                             make sure your createComponentForPage() method creates
                             a suitable component when it is passed this name
@@ -85,6 +88,25 @@ public:
                           const Drawable* normalIcon,
                           const Drawable* overIcon,
                           const Drawable* downIcon);
+
+    /** Creates a page using a set of drawables to define the page's icon.
+
+        @param pageTitle        the name of this preferences page - you'll need to
+                                make sure your createComponentForPage() method creates
+                                a suitable component when it is passed this name
+        @param normalIcon       the drawable to display in the page's button normally
+        @param overIcon         the drawable to display in the page's button when the mouse is over
+        @param downIcon         the drawable to display in the page's button when the button is down
+        @param boundsToEnclose  the part of the icon the page's button should enclose. Use
+                                BoundsToEnclose::contentBounds to fit the viewBox of icons that
+                                were parsed from an SVG.
+        @see DrawableButton, BoundsToEnclose
+    */
+    void addSettingsPage (const String& pageTitle,
+                          const Drawable* normalIcon,
+                          const Drawable* overIcon,
+                          const Drawable* downIcon,
+                          BoundsToEnclose boundsToEnclose);
 
     /** Creates a page using a set of drawables to define the page's icon.
 

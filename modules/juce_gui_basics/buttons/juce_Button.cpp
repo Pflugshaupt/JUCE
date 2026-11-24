@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -726,5 +726,66 @@ std::unique_ptr<AccessibilityHandler> Button::createAccessibilityHandler()
 {
     return std::make_unique<detail::ButtonAccessibilityHandler> (*this, AccessibilityRole::button);
 }
+
+//==============================================================================
+//==============================================================================
+#if JUCE_UNIT_TESTS
+
+struct ButtonAccessibilityTests final : public UnitTest
+{
+    ButtonAccessibilityTests()
+        : UnitTest ("Button accessibility", UnitTestCategories::gui)
+    {}
+
+    void runTest() override
+    {
+        ScopedJuceInitialiser_GUI libraryInitialiser;
+        const MessageManagerLock mml;
+
+        testCase ("The toggle action toggles a button that isn't in a radio group", [&]
+        {
+            ToggleButton button;
+            const auto handler = createHandler (button);
+
+            expect (handler->getActions().invoke (AccessibilityActionType::toggle));
+            expect (button.getToggleState());
+
+            expect (handler->getActions().invoke (AccessibilityActionType::toggle));
+            expect (! button.getToggleState());
+        });
+
+        testCase ("The toggle action selects a radio button that is off", [&]
+        {
+            ToggleButton button;
+            button.setRadioGroupId (1);
+            const auto handler = createHandler (button);
+
+            expect (handler->getActions().invoke (AccessibilityActionType::toggle));
+            expect (button.getToggleState());
+        });
+
+        testCase ("The toggle action doesn't deselect a radio button that is on", [&]
+        {
+            ToggleButton button;
+            button.setRadioGroupId (1);
+            button.setToggleState (true, dontSendNotification);
+            const auto handler = createHandler (button);
+
+            expect (handler->getActions().invoke (AccessibilityActionType::toggle));
+            expect (button.getToggleState());
+        });
+    }
+
+    // Component::getAccessibilityHandler() only returns a handler for components that are in a
+    // window, so the handler is created directly
+    static std::unique_ptr<AccessibilityHandler> createHandler (Component& component)
+    {
+        return component.createAccessibilityHandler();
+    }
+};
+
+static ButtonAccessibilityTests buttonAccessibilityTests;
+
+#endif
 
 } // namespace juce

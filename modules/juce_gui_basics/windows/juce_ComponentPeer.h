@@ -16,7 +16,7 @@
    framework to you, and you must discontinue the installation or download
    process and cease use of the JUCE framework.
 
-   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-9-licence/
    JUCE Privacy Policy: https://juce.com/juce-privacy-policy
    JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
@@ -139,9 +139,10 @@ public:
     /** Creates a peer.
 
         The component is the one that we intend to represent, and the style flags are
-        a combination of the values in the StyleFlags enum
+        a combination of the values in the StyleFlags enum. The associated component is the
+        one given to DesktopWindowOptions::withAssociatedComponent().
     */
-    ComponentPeer (Component& component, int styleFlags);
+    ComponentPeer (Component& component, int styleFlags, Component* associatedComponent = nullptr);
 
     /** Destructor. */
     ~ComponentPeer() override;
@@ -154,6 +155,15 @@ public:
         @see Component::addToDesktop
     */
     int getStyleFlags() const noexcept                      { return styleFlags; }
+
+    /** Returns the component that this window was opened from.
+
+        This is nullptr if the window has no associated component, or if that component has
+        since been deleted.
+
+        @see DesktopWindowOptions::withAssociatedComponent
+    */
+    Component* getAssociatedComponent() const noexcept      { return associatedComponent.get(); }
 
     /** Returns a unique ID for this peer.
         Each peer that is created is given a different ID.
@@ -360,7 +370,11 @@ public:
     /** Brings the window to the top, optionally also giving it keyboard focus. */
     virtual void toFront (bool takeKeyboardFocus) = 0;
 
-    /** Moves the window to be just behind another one. */
+    /** Moves the window to be just behind another one.
+
+        A window is never placed behind the window it is associated with: asking for that puts
+        it at the back of the other windows associated with the same window.
+    */
     virtual void toBehind (ComponentPeer* other) = 0;
 
     /** Called when the window is brought to the front, either by the OS or by a call
@@ -407,6 +421,12 @@ public:
     */
     virtual void closeInputMethodContext();
 
+    /** Call this to indicate that the text editor selection/cursor has changed.
+        On Android, this will avoid restarting the IME session and will attempt to
+        move the cursor within the existing session.
+    */
+    virtual void updateInputMethodContextSelection();
+
     /** Alerts the peer that the current text input target has changed somehow.
 
         The peer may hide or show the virtual keyboard as a result of this call.
@@ -426,6 +446,8 @@ public:
 
         You shouldn't ever really need to use this, it's mainly for special purposes
         like supporting audio plugins where the host's event loop is out of our control.
+
+        This has no effect on Android and iOS where the OS schedules all window painting.
     */
     virtual void performAnyPendingRepaintsNow() = 0;
 
@@ -675,6 +697,25 @@ public:
     /** @internal */
     auto getMultimonitorPositionOverride() const { return multimonitorPositionOverride; }
 
+    /** @internal */
+    virtual void setWindowsCanUseMultiTouch (bool) {}
+
+    /** @internal */
+    virtual bool canWindowsUseMultiTouch() const noexcept { return false; }
+
+    /** @internal Changes the associated component to another one in the same window.
+
+        Returns false without changing anything if the new component is in a different window,
+        in which case this window needs to be recreated.
+    */
+    bool setAssociatedComponent (Component* newAssociatedComponent);
+
+    /** @internal Called when the associated component's window has been created or recreated,
+        or when the associated component has been replaced by another one in the same window,
+        so that the platform can attach this window to the right one.
+    */
+    virtual void associationChanged() {}
+
 protected:
     //==============================================================================
     static void forceDisplayUpdate();
@@ -714,7 +755,7 @@ private:
     void globalFocusChanged (Component*) override;
     Component* getTargetForKeyPress();
 
-    WeakReference<Component> lastFocusedComponent, dragAndDropTargetComponent;
+    WeakReference<Component> lastFocusedComponent, dragAndDropTargetComponent, associatedComponent;
     Component* lastDragAndDropCompUnderMouse = nullptr;
     TextInputTarget* textInputTarget = nullptr;
     const uint32 uniqueID;
