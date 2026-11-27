@@ -624,8 +624,7 @@ namespace AAXClasses
                 const_cast<AAX_IViewContainer*> (viewContainer)->GetModifiers (&aaxViewMods);
 
 #if JUCE_WINDOWS
-                if ((aaxViewMods & AAX_eModifiers_WINKEY) != 0) modifierFlags |= ModifierKeys::commandModifier;
-                if ((aaxViewMods & AAX_eModifiers_Cntl) != 0) modifierFlags |= ModifierKeys::ctrlModifier;
+                if ((aaxViewMods & AAX_eModifiers_Command) != 0) modifierFlags |= ModifierKeys::ctrlModifier;
 #endif
                 if ((aaxViewMods & AAX_eModifiers_Shift) != 0) modifierFlags |= ModifierKeys::shiftModifier;
                 if ((aaxViewMods & AAX_eModifiers_Alt )  != 0) modifierFlags |= ModifierKeys::altModifier;
@@ -641,6 +640,7 @@ namespace AAXClasses
 
         //==============================================================================
         struct ContentWrapperComponent final : public Component,
+                                               public AAXAutomationClickFilter,
                                                private detail::PluginScaleFactorManagerListener
         {
             ContentWrapperComponent (JuceAAX_GUI& gui, AudioProcessor& plugin)
@@ -696,6 +696,27 @@ namespace AAXClasses
                         (vc->*method) (aaxParamID, mods);
                     }
                 }
+            }
+
+            /// Uses the raw AAX modifiers: on Windows the ModifierKeys flags
+            /// for command and ctrl are the same, so they cannot show Ctrl and Win.
+            bool isAAXAutomationClick (Component& clicked) override
+            {
+                auto* vc = owner.GetViewContainer();
+
+                if (vc == nullptr || pluginEditor == nullptr)
+                    return false;
+
+                uint32_t mods = 0;
+                vc->GetModifiers (&mods);
+
+                constexpr uint32_t automationMods = AAX_eModifiers_Control | AAX_eModifiers_Command;
+
+                if ((mods & automationMods) != automationMods)
+                    return false;
+
+                const auto parameterIndex = pluginEditor->getControlParameterIndex (clicked);
+                return owner.getAAXParamIDFromJuceIndex (parameterIndex) != nullptr;
             }
 
             juce::Rectangle<int> getHostBounds() const

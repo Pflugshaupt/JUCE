@@ -49,8 +49,20 @@ struct ModifierKeyReceiver
 {
     virtual ~ModifierKeyReceiver() {}
     virtual void setModifierKeyProvider (ModifierKeyProvider*) = 0;
-    virtual ModifierKeyProvider* getModifierKeyProvider() = 0;
     virtual void removeModifierKeyProvider() = 0;
+};
+
+class Component;
+
+/// The top-level component of the AAX plug-in view implements this.
+/// Component asks it at mouse down. When the answer is true, the clicked
+/// component does not get the mouse down, drag and up of this click.
+struct AAXAutomationClickFilter
+{
+    virtual ~AAXAutomationClickFilter() {}
+
+    /// True when Pro Tools handles the current click on this component as an automation click.
+    virtual bool isAAXAutomationClick (Component& clicked) = 0;
 };
 
 #endif

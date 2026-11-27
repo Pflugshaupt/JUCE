@@ -2557,22 +2557,11 @@ static bool _proToolsAutomationModsDown = false;
 
 static inline bool _proToolsAutomationMods(Component *c) {
     ignoreUnused(c);
-    // some events need to be blocked based on modifiers, which are tricky on windows.
 #if JUCE_MODULE_AVAILABLE_juce_audio_plugin_client
-#if JUCE_WINDOWS
     if (c == nullptr) return false;
-    auto* peer = c->getPeer();
-    if (auto modrec = dynamic_cast<juce::ModifierKeyReceiver*>(peer)) {
-        if (auto modprov = modrec->getModifierKeyProvider()) {
-            auto mods = modprov->getWin32Modifiers();
-            return ((mods & ModifierKeys::commandModifier) != 0) && ((mods & ModifierKeys::ctrlModifier) != 0);
-        }
+    if (auto* filter = dynamic_cast<juce::AAXAutomationClickFilter*>(c->getTopLevelComponent())) {
+        return filter->isAAXAutomationClick(*c);
     }
-#else
-    // on macOS it works the normal way.
-    const auto curModifiers = ModifierKeys::getCurrentModifiers();
-    return (curModifiers.isCommandDown() && curModifiers.isCtrlDown());
-#endif
 #endif
     return false;
 }
@@ -2684,9 +2673,9 @@ void Component::internalMouseUp (SafePointer<Component> target,
         target->repaint();
 
 
-    if (!_proToolsAutomationModsDown)
+    const bool wasAutomationClick = std::exchange (_proToolsAutomationModsDown, false);
+    if (!wasAutomationClick)
         target->mouseUp (me);
-    _proToolsAutomationModsDown = false;
 
     if (checker.shouldBailOut())
         return;
@@ -2702,7 +2691,7 @@ void Component::internalMouseUp (SafePointer<Component> target,
     // check for double-click
     if (me.getNumberOfClicks() >= 2)
     {
-        if (target == originalTarget)
+        if (target == originalTarget && !wasAutomationClick)
             target->mouseDoubleClick (checker.eventWithNearestParent());
 
         if (checker.shouldBailOut())
